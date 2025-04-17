@@ -11,26 +11,39 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes,
                  dedup=False, decluster=False,
                  nChamberPlanes=30):
     """
-    Filters hits based on out-of-time, realization efficiency, deduplication, and declustering.
+    Filters hits based on:
+    - out-of-time removal
+    - realization (efficiency drop + smearing)
+    - deduplication (by detectorID + elementID)
+    - declustering (keep smallest drift distance among adjacent hits)
+    
     Returns list of indices to keep.
     """
     keep_idx = []
     for i, det_id in enumerate(detectorIDs):
+         # Out-of-time hit removal
         if outoftime and inTimes and not inTimes[i]:
             continue
+        
+        # Realization: simulate random inefficiency and drift smearing
         if realization and det_id <= nChamberPlanes:
             if random.random() > chamber_eff:
                 continue
             driftDistances[i] += np.random.normal(0, chamber_resol)
+
+        # Keep the hit
         keep_idx.append(i)
 
+    # Sort for consistent cluster/dedup behavior
     if elementIDs:
         keep_idx.sort(key=lambda i: (detectorIDs[i], elementIDs[i]))
 
+        # Deduplication: keep only one hit per (detectorID, elementID)
         if dedup:
             seen = set()
             keep_idx = [i for i in keep_idx if (key := (detectorIDs[i], elementIDs[i])) not in seen and not seen.add(key)]
 
+        # Decluster: keep hit with smallest driftDistance among adjacent hits
         if decluster:
             keep_idx = _decluster_hits(detectorIDs, elementIDs, driftDistances, keep_idx)
 
@@ -41,26 +54,32 @@ def _decluster_hits(detectorIDs, elementIDs, driftDistances, indices):
     Within clusters of adjacent hits (same detectorID and close elementIDs),
     retain only the hit with the smallest drift distance.
     """
-    result = []
-    cluster = []
+
+    result = []       # Final indices of hits to keep
+    cluster = []      # Temporary storage for a cluster of adjacent hits
 
     for i in indices:
         if not cluster:
+            # Start new cluster
             cluster.append(i)
             continue
 
         last = cluster[-1]
         same_detector = detectorIDs[i] == detectorIDs[last]
-        close = abs(elementIDs[i] - elementIDs[last]) <= 1
+        close = abs(elementIDs[i] - elementIDs[last]) <= 1  # "adjacent" in terms of strip/paddle ID
 
         if same_detector and close:
+            # Current hit is part of the ongoing cluster
             cluster.append(i)
         else:
+            # End of cluster: choose best (smallest drift) and reset cluster
             result.append(min(cluster, key=lambda j: driftDistances[j]))
             cluster = [i]
 
+    # Final cluster (if it exists)
     if cluster:
         result.append(min(cluster, key=lambda j: driftDistances[j]))
+
     return result
 
 def run_reduce_event_on_file(root_filename, **kwargs):
@@ -102,10 +121,10 @@ def run_reduce_event_on_file(root_filename, **kwargs):
     f.Close()
     return index_data
 
-
-def write_reduced_to_root_from_idx(input_filename, output_filename, index_data):
+def write_reduced_to_root_all_branches(input_filename, output_filename, index_data, branches_to_filter):
     """
-    Writes a new ROOT file using filtered hit data based on provided keep_idx per event.
+    Writes a new ROOT file where all branches are preserved, but specific hit-level branches are filtered
+    using provided keep_idx lists per event.
     """
     input_file = ROOT.TFile.Open(input_filename, "READ")
     tree = input_file.Get("tree")
@@ -113,35 +132,37 @@ def write_reduced_to_root_from_idx(input_filename, output_filename, index_data):
         raise RuntimeError("Could not find 'tree' in input ROOT file.")
 
     output_file = ROOT.TFile(output_filename, "RECREATE")
-    new_tree = ROOT.TTree("tree", "Reduced Event Data")
+    new_tree = tree.CloneTree(0)  # Clone structure, no entries
 
-    eventID = np.zeros(1, dtype=np.int32)
-    detectorID = std.vector('int')()
-    driftDistance = std.vector('double')()
-    tdcTime = std.vector('double')()
-    elementID = std.vector('int')()
+    # Setup references to new vectors
+    branch_buffers = {}
+    tree.GetEntry(0)
+    for name in branches_to_filter:
+        print(f"Inspecting branch: {name}")
+        sample_value = getattr(tree, name)[0]
+        if isinstance(sample_value, int):
+            buffer = std.vector('int')()
+        elif isinstance(sample_value, float):
+            buffer = std.vector('double')()
+        else:
+            raise TypeError(f"Unsupported type for branch {name}")
+        branch_buffers[name] = buffer
+        new_tree.SetBranchAddress(name, buffer)
 
-    new_tree.Branch("eventID", eventID, "eventID/I")
-    new_tree.Branch("detectorID", detectorID)
-    new_tree.Branch("driftDistance", driftDistance)
-    new_tree.Branch("tdcTime", tdcTime)
-    new_tree.Branch("elementID", elementID)
-
+     # Loop over each event and fill the tree with filtered vectors
     for entry in index_data:
         i = entry["entry"]
+        keep_idx = entry["keep_idx"]
+
         tree.GetEntry(i)
 
-        eventID[0] = entry["eventID"]
-        detectorID.clear()
-        driftDistance.clear()
-        tdcTime.clear()
-        elementID.clear()
-
-        for j in entry["keep_idx"]:
-            detectorID.push_back(tree.detectorID[j])
-            driftDistance.push_back(tree.driftDistance[j])
-            tdcTime.push_back(tree.tdcTime[j])
-            elementID.push_back(tree.elementID[j])
+        # Replace contents of specified vector branches
+        for name in branches_to_filter:
+            source = getattr(tree, name)
+            buffer = branch_buffers[name]
+            buffer.clear()
+            for j in keep_idx:
+                buffer.push_back(source[j])
 
         new_tree.Fill()
 
@@ -155,7 +176,7 @@ def write_reduced_to_root_from_idx(input_filename, output_filename, index_data):
 
 if __name__ == "__main__":
     input_file = "MC_negMuon_Dump_Feb21.root"
-    output_file = "reduced_output_from_idx.root"
+    output_file = "reduced_output_all_branches.root"
 
     index_data = run_reduce_event_on_file(
         root_filename=input_file,
@@ -166,4 +187,20 @@ if __name__ == "__main__":
         max_events=1000
     )
 
-    write_reduced_to_root_from_idx(input_file, output_file, index_data)
+    # Hit-level branches that should be filtered
+    branches_to_filter = [
+        "hitID",
+        "hit_trackID",
+        "processID",
+        "detectorID",
+        "elementID",
+        "driftDistance",
+        "tdcTime"
+    ]
+
+    write_reduced_to_root_all_branches(
+        input_filename=input_file,
+        output_filename=output_file,
+        index_data=index_data,
+        branches_to_filter=branches_to_filter
+    )

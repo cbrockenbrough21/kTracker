@@ -75,7 +75,7 @@ if __name__ == "__main__":
         "D3m": 40
     }
 
-    filename = "/project/ptgroup/spinquest/RUS_Extended_MC/singleTrack/MC_negMuon_Dump_Feb21.root"
+    filename = "MC_negMuon_Dump_Feb21.root"
     accepted = run_accept_event_on_file(filename, max_hits)
 
     print(f"Accepted {len(accepted)} events")
