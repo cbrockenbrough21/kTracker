@@ -6,9 +6,10 @@ import ROOT
 import numpy as np
 from filters.out_of_time_removal import remove_out_of_time_hits
 from filters.decluster_hits import decluster_hits
+from filters.deduplicate_hits import deduplicate_hits
 from utils.io_helpers import write_reduced_to_root_all_branches
 
-BRANCHES_TO_FILTER = ["detectorID", "elementID", "driftDistance", "tdcTime", "hitID", "hit_trackID", "processID"]
+BRANCHES_TO_FILTER = ["detectorID", "elementID", "driftDistance", "tdcTime"] #"hitID", "hit_trackID", "processID"
 
 def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
     """
@@ -29,7 +30,10 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
         keep_idx = remove_out_of_time_hits(np.array(tdcTimes), kwargs['tdc_center'], kwargs['tdc_width'], keep_idx)
 
     if kwargs.get('decluster', False):
-        keep_idx = decluster_hits(detectorIDs, elementIDs, driftDistances, keep_idx)
+        keep_idx = decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx)
+        
+    if kwargs.get('dedup', False):
+        keep_idx = deduplicate_hits(detectorIDs, elementIDs, keep_idx)
 
     return keep_idx
 
@@ -62,8 +66,8 @@ def run_reduction(input_file, output_file, **kwargs):
     write_reduced_to_root_all_branches(input_file, output_file, index_data, BRANCHES_TO_FILTER)
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/messy_gen/MC_negMuon_Dump_Feb21.root"
-    output_file = "reduced_output.root"
+    input_file = "/project/ptgroup/Catherine/kTracker/noisy_data_gen/noisy_MC_negMuon_Dump_Feb21.root" 
+    output_file = "cleaned_output.root"
 
     run_reduction(
         input_file=input_file,
@@ -71,5 +75,5 @@ if __name__ == "__main__":
         outoftime=False,
         tdc_center=950.0,
         tdc_width=7.4,
-        decluster=False
+        decluster=True
     )
