@@ -16,13 +16,16 @@ To install the Python packages:
 
 ```bash
 pip install numpy uproot pytest
+```
 
 
 ## 🚀 Running the Hit Reduction Pipeline
 
 Run the main pipeline script:
 
+```bash
 python3 reduce_event/run_reduce_event.py
+```
 
 You can modify parameters inside the script to control:
 
@@ -42,7 +45,9 @@ pytest reduce_event/tests/
 
 To compare original, noisy, and reduced files:
 
+```bash
 python3 reduce_event/scripts/analyze_reduction.py
+```
 
 This will report:
 
@@ -62,9 +67,13 @@ This creates a noisy_output.root file with synthetic noise hits (electronic + cl
 
 Plot per-detector TDC time histograms:
 
+```bash
 python3 tdctime_histogram/tdctime_histogram.py tdctime_histogram/yourfile.root
+```
 
 Fit a Gaussian to the TDC distribution:
 
+```bash
 python3 tdctime_histogram/gaussian_fit.py
+```
 
