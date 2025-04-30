@@ -20,8 +20,8 @@ def test_two_hit_cluster_keep_one_based_on_drift():
     keep_idx = [0, 1]
 
     result = decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx)
-    # Should keep hit 0 because drift[0] > w_max and drift[1] > w_min
-    assert result == [0]
+    # Should keep hit 1 because drift[0] > w_max and drift[1] > w_min
+    assert result == [1]
 
 def test_two_hit_cluster_remove_due_to_noise_D3p():
     detectorIDs = [20, 20]  # D3p range
