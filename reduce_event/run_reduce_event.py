@@ -75,5 +75,6 @@ if __name__ == "__main__":
         outoftime=False,
         tdc_center=950.0,
         tdc_width=7.4,
-        decluster=True
+        decluster=True,
+        dedup=False
     )
