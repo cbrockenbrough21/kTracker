@@ -61,7 +61,9 @@ This will report:
 
 To inject noise into a ROOT file:
 
+```bash
 python3 noisy_data_gen/noisy_gen.py path/to/input.root
+```
 
 This creates a noisy_output.root file with synthetic noise hits (electronic + clustered).
 
