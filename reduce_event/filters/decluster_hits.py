@@ -1,107 +1,107 @@
-"""
-Decluster adjacent hits based on drift distances and TDC timing.
-"""
-
 import numpy as np
 
 def decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx):
     """
-    Apply declustering to hits.
+    Group adjacent hits and apply declustering logic to remove noise-like clusters.
     
     Args:
-        detectorIDs (list[int]): detector IDs
-        elementIDs (list[int]): element IDs
-        driftDistances (list[float]): drift distances
-        tdcTimes (list[float]): tdc times
-        keep_idx (list[int]): indices of hits to consider
+        detectorIDs, elementIDs, driftDistances, tdcTimes: Full hit info arrays
+        keep_idx (list[int]): Indices of hits that passed previous filters (e.g. out-of-time)
 
     Returns:
-        list[int]: Updated list of indices to keep
+        list[int]: Indices of hits to keep after declustering
     """
 
-    # Detector half-cell widths (in cm) for windowing
+    # Step 1: Sort the hits (so clusters of adjacent elements in the same detector are grouped)
+    sorted_hits = sorted(keep_idx, key=lambda i: (detectorIDs[i], elementIDs[i]))
+
+    result = []    # Final filtered indices
+    cluster = []   # Temporary cluster of adjacent hits
+
+    for i in sorted_hits:
+        if not cluster:
+            # First hit starts a new cluster
+            cluster.append(i)
+            continue
+
+        last = cluster[-1]
+        # Check if current hit is adjacent to last hit in the same detector
+        if detectorIDs[i] == detectorIDs[last] and abs(elementIDs[i] - elementIDs[last]) <= 1:
+            cluster.append(i)
+        else:
+            # Cluster ended — process it and start a new one
+            result.extend(process_cluster(cluster, detectorIDs, driftDistances, tdcTimes))
+            cluster = [i]
+
+    # Process the final cluster at end of loop
+    if cluster:
+        result.extend(process_cluster(cluster, detectorIDs, driftDistances, tdcTimes))
+
+    return result
+
+
+def process_cluster(cluster, detectorIDs, driftDistances, tdcTimes):
+    """
+    Apply station-specific rules to determine which hits in a cluster to keep.
+
+    Rules:
+    - If 1 hit → keep it.
+    - If 2 hits:
+        - If D3p (detectors 19–24) and |tdc diff| < 8 → remove both (likely noise)
+        - Else, use drift distances to keep one or both.
+    - If >=3 hits:
+        - If avg tdc diff < 10 → remove all (electronic noise)
+        - Else, keep first and last hit only
+    """
+
+    # Half-cell widths by detector group, used for drift-based filtering
     half_cell_widths = {
         0: 0.635 / 2,  # D0
         1: 2.083 / 2,  # D2X
         2: 2.021 / 2,  # D2U
         3: 2.021 / 2,  # D2V
         4: 2.000 / 2,  # D3p
-        5: 2.000 / 2,  # D3m
+        5: 2.000 / 2   # D3m
     }
 
-    # Sort hits by detectorID and elementID
-    sorted_hits = sorted(keep_idx, key=lambda i: (detectorIDs[i], elementIDs[i]))
+    n = len(cluster)
+    if n == 1:
+        return [cluster[0]]  # Nothing to decluster
 
-    result = []  # Final hits to keep
-    cluster = []
+    det_id = detectorIDs[cluster[0]]
+    same_detector = all(detectorIDs[i] == det_id for i in cluster)
 
-    def flush_cluster(cluster):
-        if not cluster:
-            return
+    if not same_detector:
+        # Safety check: not a real cluster — return all
+        return cluster
 
-        # If only 1 hit, keep it
-        if len(cluster) == 1:
-            result.append(cluster[0])
-            return
+    hw = half_cell_widths.get(det_id // 5, 0.635 / 2)  # Fall back to D0 width
 
-        # Get cluster properties
-        det_ids = [detectorIDs[i] for i in cluster]
-        drifts = [driftDistances[i] for i in cluster]
-        tdcs = [tdcTimes[i] for i in cluster]
+    if n == 2:
+        i0, i1 = cluster
+        drift0, drift1 = driftDistances[i0], driftDistances[i1]
+        tdc0, tdc1 = tdcTimes[i0], tdcTimes[i1]
 
-        same_detector = all(det_ids[0] == det for det in det_ids)
+        # D3p (detectorIDs 19–24): remove both hits if TDCs are too close
+        if 19 <= det_id <= 24 and abs(tdc0 - tdc1) < 8:
+            return []
 
-        if not same_detector:
-            for i in cluster:
-                result.append(i)
-            return
+        # Drift-based logic: one large + one medium drift → remove weaker one
+        w_max = 0.9 * hw
+        w_min = 0.4 * hw
 
-        if len(cluster) == 2:
-            det_id = det_ids[0]
-            
-            # Special handling for D3p (detectorIDs 19-24)
-            if 19 <= det_id <= 24 and abs(tdcs[0] - tdcs[1]) < 8:
-                # Electronic noise: remove both hits
-                return
-            else:
-                # Drift-based removal
-                hw = half_cell_widths.get(det_id // 5, 0.635 / 2)
-                w_max = 0.9 * hw
-                w_min = (w_max / 9) * 4
-
-                if drifts[0] > w_max and drifts[1] > w_min:
-                    result.append(cluster[0])
-                elif drifts[1] > w_max and drifts[0] > w_min:
-                    result.append(cluster[1])
-                else:
-                    result.extend(cluster)
-
-        elif len(cluster) >= 3:
-            dt_sum = sum(abs(tdcs[i] - tdcs[i-1]) for i in range(1, len(tdcs)))
-            dt_mean = dt_sum / (len(tdcs) - 1)
-
-            if dt_mean < 10:
-                # Electronic noise cluster: remove all
-                return
-            else:
-                # Keep only first and last hit
-                result.append(cluster[0])
-                result.append(cluster[-1])
-
-    # Walk through sorted hits and group clusters
-    for i in sorted_hits:
-        if not cluster:
-            cluster.append(i)
-            continue
-
-        last = cluster[-1]
-        if detectorIDs[i] == detectorIDs[last] and abs(elementIDs[i] - elementIDs[last]) <= 1:
-            cluster.append(i)
+        if drift0 > w_max and drift1 > w_min:
+            return [i1]  # Keep smaller drift
+        elif drift1 > w_max and drift0 > w_min:
+            return [i0]
         else:
-            flush_cluster(cluster)
-            cluster = [i]
+            return [i0, i1]
 
-    # Final cluster
-    flush_cluster(cluster)
+    # n ≥ 3: check average TDC time difference
+    tdcs = [tdcTimes[i] for i in cluster]
+    dt_mean = np.mean(np.abs(np.diff(tdcs)))
 
-    return result
+    if dt_mean < 10:
+        return []  # Likely noise — remove all
+    else:
+        return [cluster[0], cluster[-1]]  # Keep edges only
