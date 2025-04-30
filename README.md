@@ -39,7 +39,9 @@ Set the branches that are HIT vectors to be filtered when rewriting the file so 
 
 To run unit tests for the declustering logic:
 
+```bash
 pytest reduce_event/tests/
+```
 
 ## 🔬 Analyzing Reduction Effectiveness
 
