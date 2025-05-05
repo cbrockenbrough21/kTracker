@@ -1,57 +1,70 @@
-"""
-Helpers for reading and writing ROOT files with filtered hits.
-"""
-
 import ROOT
 from ROOT import std
 
-def write_reduced_to_root_all_branches(input_filename, output_filename, index_data, branches_to_filter):
+def write_reduced_to_root_all_branches(input_filename, output_filename, index_data):
     """
-    Writes a new ROOT file where all branches are preserved, but specific hit-level branches are filtered
-    using provided keep_idx lists per event.
+    Writes a new ROOT file with all branches preserved, but specific hit-level branches
+    ('detectorID', 'elementID', 'driftDistance', 'tdcTime') filtered using keep_idx.
     """
+    # Open input file
     input_file = ROOT.TFile.Open(input_filename, "READ")
-    tree = input_file.Get("tree")
-    if not tree:
+    tree_in = input_file.Get("tree")
+    if not tree_in:
         raise RuntimeError("Could not find 'tree' in input ROOT file.")
 
-    output_file = ROOT.TFile(output_filename, "RECREATE")
-    new_tree = tree.CloneTree(0)  # Clone structure, no entries
+    # Prepare output file
+    output_file = ROOT.TFile.Open(output_filename, "RECREATE", "", 1)
+    output_file.SetCompressionLevel(5)
+    output_file.cd()
 
-    # Setup references to new vectors
-    branch_buffers = {}
-    tree.GetEntry(0)
-    for name in branches_to_filter:
-        sample_value = getattr(tree, name)[0]
-        if isinstance(sample_value, int):
-            buffer = std.vector('int')()
-        elif isinstance(sample_value, float):
-            buffer = std.vector('double')()
-        else:
-            raise TypeError(f"Unsupported type for branch {name}")
-        branch_buffers[name] = buffer
-        new_tree.SetBranchAddress(name, buffer)
+    # Clone tree structure only (no entries yet)
+    tree_out = tree_in.CloneTree(0)
 
-    # Loop over each event and fill the tree with filtered vectors
+    # Input vectors
+    detectorID = std.vector("int")()
+    elementID = std.vector("int")()
+    driftDistance = std.vector("double")()
+    tdcTime = std.vector("double")()
+
+    tree_in.SetBranchAddress("detectorID", detectorID)
+    tree_in.SetBranchAddress("elementID", elementID)
+    tree_in.SetBranchAddress("driftDistance", driftDistance)
+    tree_in.SetBranchAddress("tdcTime", tdcTime)
+
+    # Output vectors
+    det_out = std.vector("int")()
+    ele_out = std.vector("int")()
+    drift_out = std.vector("double")()
+    tdc_out = std.vector("double")()
+
+    tree_out.SetBranchAddress("detectorID", det_out)
+    tree_out.SetBranchAddress("elementID", ele_out)
+    tree_out.SetBranchAddress("driftDistance", drift_out)
+    tree_out.SetBranchAddress("tdcTime", tdc_out)
+
     for entry in index_data:
         i = entry["entry"]
         keep_idx = entry["keep_idx"]
 
-        tree.GetEntry(i)
+        tree_in.GetEntry(i)
 
-        # Replace contents of specified vector branches
-        for name in branches_to_filter:
-            source = getattr(tree, name)
-            buffer = branch_buffers[name]
-            buffer.clear()
-            for j in keep_idx:
-                buffer.push_back(source[j])
+        # Fill output vectors
+        det_out.clear()
+        ele_out.clear()
+        drift_out.clear()
+        tdc_out.clear()
 
-        new_tree.Fill()
+        for j in keep_idx:
+            det_out.push_back(detectorID[j])
+            ele_out.push_back(elementID[j])
+            drift_out.push_back(driftDistance[j])
+            tdc_out.push_back(tdcTime[j])
+
+        tree_out.Fill()
 
     output_file.cd()
-    new_tree.Write("", ROOT.TObject.kOverwrite)
+    tree_out.Write("", ROOT.TObject.kOverwrite)
     output_file.Close()
     input_file.Close()
 
-    print(f"Wrote reduced ROOT file: {output_filename}")
+    print(f"Wrote reduced ROOT file to '{output_filename}'")
