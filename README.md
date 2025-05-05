@@ -24,7 +24,8 @@ pip install numpy uproot pytest
 Run the main pipeline script:
 
 ```bash
-python3 reduce_event/run_reduce_event.py
+cd reduce_event
+python3 run_reduce_event.py
 ```
 
 You can modify parameters inside the script to control:
@@ -40,7 +41,8 @@ Set the branches that are HIT vectors to be filtered when rewriting the file so 
 To run unit tests for the declustering logic:
 
 ```bash
-pytest reduce_event/tests/
+cd reduce_event
+pytest tests/
 ```
 
 ## 🔬 Analyzing Reduction Effectiveness
@@ -48,7 +50,8 @@ pytest reduce_event/tests/
 To compare original, noisy, and reduced files:
 
 ```bash
-python3 reduce_event/scripts/analyze_reduction.py
+cd reduce_event
+python3 scripts/analyze_reduction.py
 ```
 
 This will report:
