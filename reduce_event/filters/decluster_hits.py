@@ -98,10 +98,11 @@ def process_cluster(cluster, detectorIDs, driftDistances, tdcTimes):
             return [i0, i1]
 
     # n ≥ 3: check average TDC time difference
-    tdcs = [tdcTimes[i] for i in cluster]
-    dt_mean = np.mean(np.abs(np.diff(tdcs)))
+    elif n >= 3:
+        tdcs = [tdcTimes[i] for i in cluster]
+        dt_mean = np.mean(np.abs(np.diff(tdcs)))
 
-    if dt_mean < 10:
-        return []  # Likely noise — remove all
-    else:
-        return [cluster[0], cluster[-1]]  # Keep edges only
+        if dt_mean < 10:
+            return []  # Likely noise — remove all
+        else:
+            return [cluster[0], cluster[-1]]  # Keep edges only
