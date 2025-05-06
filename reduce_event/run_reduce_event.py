@@ -25,6 +25,9 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
         list[int]: Indices to keep
     """
     keep_idx = list(range(len(detectorIDs)))
+            
+    if kwargs.get('dedup', False):
+        keep_idx = deduplicate_hits(detectorIDs, elementIDs, keep_idx)
 
     if kwargs.get('outoftime', False):
         keep_idx = remove_out_of_time_hits(np.array(tdcTimes), kwargs['tdc_center'], kwargs['tdc_width'], keep_idx)
@@ -32,9 +35,6 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
     if kwargs.get('decluster', False):
         keep_idx = decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx)
         
-    if kwargs.get('dedup', False):
-        keep_idx = deduplicate_hits(detectorIDs, elementIDs, keep_idx)
-
     return keep_idx
 
 def run_reduction(input_file, output_file, **kwargs):
@@ -63,7 +63,7 @@ def run_reduction(input_file, output_file, **kwargs):
 
     f.Close()
 
-    write_reduced_to_root_all_branches(input_file, output_file, index_data, BRANCHES_TO_FILTER)
+    write_reduced_to_root_all_branches(input_file, output_file, index_data)
 
 if __name__ == "__main__":
     input_file = "/project/ptgroup/Catherine/kTracker/noisy_data_gen/noisy_MC_negMuon_Dump_Feb21.root" 
