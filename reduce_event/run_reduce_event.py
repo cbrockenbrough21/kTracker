@@ -7,7 +7,7 @@ import numpy as np
 from filters.out_of_time_removal import remove_out_of_time_hits
 from filters.decluster_hits import decluster_hits
 from filters.deduplicate_hits import deduplicate_hits
-from utils.io_helpers import write_reduced_to_root_all_branches
+from utils.io_helpers import write_reduced
 
 BRANCHES_TO_FILTER = ["detectorID", "elementID", "driftDistance", "tdcTime"] #"hitID", "hit_trackID", "processID"
 
@@ -63,7 +63,7 @@ def run_reduction(input_file, output_file, **kwargs):
 
     f.Close()
 
-    write_reduced_to_root_all_branches(input_file, output_file, index_data)
+    write_reduced(input_file, output_file, index_data)
 
 if __name__ == "__main__":
     input_file = "/project/ptgroup/Catherine/kTracker/noisy_data_gen/noisy_MC_negMuon_Dump_Feb21.root" 

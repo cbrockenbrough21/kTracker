@@ -1,7 +1,8 @@
 import ROOT
 from ROOT import std
 
-def write_reduced_to_root_all_branches(input_filename, output_filename, index_data):
+
+def write_reduced(input_filename, output_filename, index_data):
     """
     Writes a new ROOT file with all branches preserved, but specific hit-level branches
     ('detectorID', 'elementID', 'driftDistance', 'tdcTime') filtered using keep_idx.
