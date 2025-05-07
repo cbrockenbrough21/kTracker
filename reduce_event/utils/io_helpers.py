@@ -20,6 +20,8 @@ def write_reduced(input_filename, output_filename, index_data):
 
     # Clone tree structure only (no entries yet)
     tree_out = tree_in.CloneTree(0)
+    tree_out.SetAutoFlush(2500)
+    tree_out.SetBasketSize("*", 64000)
 
     # Input vectors
     detectorID = std.vector("int")()
