@@ -32,8 +32,8 @@ def compare_tree_entries(file1, file2, entry_index, branches_to_check):
     f2.Close()
 
 # Example usage
-file1 = "./../noisy_data_gen/noisy_MC_negMuon_Dump_Feb21.root"
-file2 = "./cleaned_output.root"
+file1 = "./reduce_event/cleaned_output.root"
+file2 = "./reduce_event_optimized/cleaned_output.root"
 entry_index = 1
 branches = ["eventID", "detectorID", "elementID", "tdcTime", "driftDistance"]
 
