@@ -58,6 +58,7 @@ def write_reduced(input_filename, output_filename, index_data):
         tdc_out.clear()
 
         for j in keep_idx:
+            j = int(j)
             det_out.push_back(detectorID[j])
             ele_out.push_back(elementID[j])
             drift_out.push_back(driftDistance[j])

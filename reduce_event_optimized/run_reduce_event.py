@@ -13,19 +13,8 @@ from utils.io_helpers import write_reduced
 BRANCHES_TO_FILTER = ["detectorID", "elementID", "driftDistance", "tdcTime"] #"hitID", "hit_trackID", "processID"
 
 def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
-    """
-    Apply filters to reduce events.
 
-    Args:
-        detectorIDs (list[int])
-        driftDistances (list[float])
-        tdcTimes (list[float])
-        elementIDs (list[int])
-
-    Returns:
-        list[int]: Indices to keep
-    """
-    keep_idx = list(range(len(detectorIDs)))
+    keep_idx = np.arange(len(detectorIDs), dtype=np.int32)
             
     if kwargs.get('dedup', False):
         keep_idx = deduplicate_hits(detectorIDs, elementIDs, keep_idx)
@@ -79,9 +68,9 @@ def run_reduction(input_file, output_file, **kwargs):
     print(f"Total runtime:  {total_end - total_start:.2f} s")
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/data/small_noisy_output_10000.root" 
-    output_file = "cleaned_output.root"
-
+    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/small_combined_noisy.root" 
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned_optimized/small_combined_cleaned.root" 
+    
     run_reduction(
         input_file=input_file,
         output_file=output_file,
