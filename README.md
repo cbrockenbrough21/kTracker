@@ -5,9 +5,9 @@ This project implements a modular pipeline for cleaning and reducing physics hit
 ## 🛠️ Environment Setup
 
 If you're using Rivanna or need custom environment setup:
-``bash
+```bash
 source setup.sh
-``
+```
 
 This sets up required environment variables and paths for ROOT.
 
