@@ -65,7 +65,7 @@ def run_reduction(input_file, output_file, **kwargs):
         tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv"
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
-        HODO_IDS = {41} 
+        HODO_IDS = {31, 32, 37, 38, 39, 40}
 
     read_filter_start = time.perf_counter()
     
@@ -100,8 +100,8 @@ def run_reduction(input_file, output_file, **kwargs):
     print(f"Total runtime:  {total_end - total_start:.2f} s")
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/small_combined_varied_hits.root" 
-    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/small_combined_cleaned.root" 
+    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/negMuon_10000_noisy.root" 
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/negMuon_10000_cleaned.root" 
 
     run_reduction(
         input_file=input_file,

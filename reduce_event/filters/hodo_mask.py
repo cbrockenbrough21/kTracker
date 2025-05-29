@@ -17,11 +17,20 @@ def apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, c2h, keep_idx):
     """
     new_keep_idx = []
     for i in keep_idx:
-        uid = detectorIDs[i] * 1000 + elementIDs[i]
-        if uid not in c2h:
-            new_keep_idx.append(i)  # No hodoscope match info: keep the hit
+        
+        if detectorIDs[i] > 30:
+            #print(f"[KEEP NON-CHAMBER] detID={detectorIDs[i]}, elemID={elementIDs[i]}")
+            new_keep_idx.append(i)  # Always keep non-chamber hits
             continue
-        if any(h in hodo_uids for h in c2h[uid]):
+    
+        uid = detectorIDs[i] * 1000 + elementIDs[i]
+        
+        if uid not in c2h:
+            continue
+
+        overlap = set(c2h[uid]) & hodo_uids
+        if overlap:
+            #print(f"[MATCH] Chamber UID {uid} matches hodoscope UIDs {overlap} — keeping")
             new_keep_idx.append(i)
     return new_keep_idx
 
