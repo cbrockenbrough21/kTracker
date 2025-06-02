@@ -13,7 +13,9 @@ CHAM_LUT_MAP = {
     39: [25, 26, 27, 28, 29, 30],  # H3B → D3mVp, D3mV, D3mXp, D3mX, D3mUp, D3mU
 }
 
-TX_MAX = 0.3  # maximum projected slope in X for hodo-to-chamber mapping
+TX_MAX = 0.15  # maximum projected slope in X for hodo-to-chamber mapping
+TY_MAX = 0.10  # maximum projected slope in Y for hodo-to-chamber mapping
+BUFFER = 2  # number of elements to buffer on each side of matched range
 
 class Plane:
     def __init__(self, detectorID, planeType, z0, n_elements, spacing, cellWidth):
@@ -80,14 +82,13 @@ class GeometryService:
 
     def init_hodo_mask_lut(self):
         """
-        Constructs a lookup table mapping chamber hits to hodos that can mask them.
+        Constructs a lookup table mapping chamber hits (by UID) to hodoscope hits that can justify keeping them.
+        Mirrors the logic of EventReducer::initHodoMaskLUT in C++.
 
-        - For each hodoscope paddle, we project its x-extent (box size) to every chamber z-plane.
-        - If a chamber wire center falls inside that projected x-range, we record the mapping.
-
-        NOTE:
-        - This is chamber-to-hodo (c2h) — used to decide whether to keep a chamber hit based on hodo hits.
-        - If a hodo ID or chamber ID is missing, we skip it with a warning.
+        - Projects the X (and optionally Y) span of each hodoscope paddle to each relevant chamber.
+        - Uses TX_MAX margin to expand projected region.
+        - Adds BUFFER chamber elements on both ends of matched range.
+        - Builds chamber-to-hodoscope (c2h) LUT directly.
         """
         for hodo_id, cham_ids in CHAM_LUT_MAP.items():
             if hodo_id not in self.detectors:
@@ -98,7 +99,7 @@ class GeometryService:
 
             for hodo_elem in range(1, self.get_n_elements(hodo_id) + 1):
                 hodo_uid = hodo_id * 1000 + hodo_elem
-                x0_min, x0_max, _, _ = self.get_2d_box_size(hodo_id, hodo_elem)
+                x0_min, x0_max, y0_min, y0_max = self.get_2d_box_size(hodo_id, hodo_elem)
 
                 for cham_id in cham_ids:
                     if cham_id not in self.detectors:
@@ -107,11 +108,35 @@ class GeometryService:
 
                     z_cham = self.get_plane_position(cham_id)
                     dz = z_cham - z_hodo
+
+                    # Expand hodo paddle projection to chamber Z using TX_MAX and TY_MAX margin
                     x_min = x0_min - abs(TX_MAX * dz)
                     x_max = x0_max + abs(TX_MAX * dz)
+                    y_min = y0_min - abs(TY_MAX * dz)
+                    y_max = y0_max + abs(TY_MAX * dz)
 
-                    for cham_elem in range(1, self.get_n_elements(cham_id) + 1):
-                        x_c = self.detectors[cham_id].get_wire_position(cham_elem)
-                        if x_min <= x_c <= x_max:
-                            cham_uid = cham_id * 1000 + cham_elem
-                            self.c2h.setdefault(cham_uid, []).append(hodo_uid)
+                    n_elements = self.get_n_elements(cham_id)
+
+                    # Find chamber elements whose wire centers lie in this range
+                    wire_positions = [self.detectors[cham_id].get_wire_position(eid) for eid in range(1, n_elements + 1)]
+
+                    # Identify first and last matching elements
+                    lo = hi = None
+                    for eid, x in enumerate(wire_positions):
+                        if x_min <= x <= x_max:
+                            if lo is None:
+                                lo = eid
+                            hi = eid
+
+                    # If no matching elements, skip this hodo-chamber pair
+                    if lo is None or hi is None:
+                        continue
+
+                    # Apply ±2 element buffer
+                    lo = max(0, lo - BUFFER)
+                    hi = min(n_elements - 1, hi + BUFFER)
+
+                    # Map each chamber UID in this buffered range to the hodo UID
+                    for cham_elem in range(lo + 1, hi + 2): 
+                        cham_uid = cham_id * 1000 + cham_elem
+                        self.c2h.setdefault(cham_uid, []).append(hodo_uid)
