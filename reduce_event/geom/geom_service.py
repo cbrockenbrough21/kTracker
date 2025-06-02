@@ -1,6 +1,7 @@
 # geom/geom_service.py
 
 import pandas as pd
+import math
 
 CHAM_LUT_MAP = {
     31: [1, 2, 3, 4, 5, 6],        # H1B → D0U, D0Up, D0X, D0Xp, D0V, D0Vp
@@ -18,27 +19,39 @@ TY_MAX = 0.10  # maximum projected slope in Y for hodo-to-chamber mapping
 BUFFER = 2  # number of elements to buffer on each side of matched range
 
 class Plane:
-    def __init__(self, detectorID, planeType, z0, n_elements, spacing, cellWidth):
+    def __init__(self, detectorID, planeType, z0, n_elements, spacing, cellWidth, height, x0, y0, theta_z):
         self.detectorID = detectorID
         self.planeType = planeType
+        self.x0 = x0
+        self.y0 = y0
         self.z0 = z0
         self.n_elements = n_elements
         self.spacing = spacing
         self.cellWidth = cellWidth
         self.xoffset = 0.0
-        self.x0 = 0.0
-        self.y0 = 0.0
+        self.height = height
+        self.theta_z = theta_z
         self.costheta = 1.0
         self.sintheta = 0.0
+        self.deltaW = 0.0
 
     def get_wire_position(self, elementID):
-        return (elementID - (self.n_elements + 1) / 2.0) * self.spacing + self.xoffset
+        mid_index = (self.n_elements + 1) / 2.0
+        dw = self.spacing * (elementID - mid_index) + self.xoffset
+        angle = self.theta_z  # already in radians
+
+        x_pos = self.x0 * math.cos(angle) + self.y0 * math.sin(angle) + dw + self.deltaW
+        return x_pos
 
     def get_2d_box_size(self, elementID):
         x_center = self.get_wire_position(elementID)
-        return (x_center - 0.5 * self.cellWidth,
-                x_center + 0.5 * self.cellWidth,
-                -50.0, 50.0)
+        x_min = x_center - 0.5 * self.cellWidth
+        x_max = x_center + 0.5 * self.cellWidth
+
+        y_min = self.y0 - 0.5 * self.height
+        y_max = self.y0 + 0.5 * self.height
+
+        return x_min, x_max, y_min, y_max
 
 
 class GeometryService:
@@ -59,10 +72,14 @@ class GeometryService:
             plane = Plane(
                 detectorID=det_id,
                 planeType=1,
+                x0=row.x0,
+                y0 = row.y0,
                 z0=row.z0,
+                height=row.height,
                 n_elements=row.n_ele,
                 spacing=row.cell_spacing,
-                cellWidth=row.cell_width
+                cellWidth=row.cell_width,
+                theta_z=row.theta_z
             )
             self.detectors[det_id] = plane
 
@@ -83,12 +100,7 @@ class GeometryService:
     def init_hodo_mask_lut(self):
         """
         Constructs a lookup table mapping chamber hits (by UID) to hodoscope hits that can justify keeping them.
-        Mirrors the logic of EventReducer::initHodoMaskLUT in C++.
-
-        - Projects the X (and optionally Y) span of each hodoscope paddle to each relevant chamber.
-        - Uses TX_MAX margin to expand projected region.
-        - Adds BUFFER chamber elements on both ends of matched range.
-        - Builds chamber-to-hodoscope (c2h) LUT directly.
+        Includes TX_MAX and TY_MAX projections and ±BUFFER element padding.
         """
         for hodo_id, cham_ids in CHAM_LUT_MAP.items():
             if hodo_id not in self.detectors:
@@ -117,18 +129,25 @@ class GeometryService:
 
                     n_elements = self.get_n_elements(cham_id)
 
-                    # Find chamber elements whose wire centers lie in this range
-                    wire_positions = [self.detectors[cham_id].get_wire_position(eid) for eid in range(1, n_elements + 1)]
+                    # Store (eid, x_pos, y_min, y_max) for chamber wires
+                    wire_info = [
+                        (
+                            eid,
+                            self.detectors[cham_id].get_wire_position(eid),
+                            self.detectors[cham_id].y0 - 0.5 * self.detectors[cham_id].height,
+                            self.detectors[cham_id].y0 + 0.5 * self.detectors[cham_id].height,
+                        )
+                        for eid in range(1, n_elements + 1)
+                    ]
 
-                    # Identify first and last matching elements
+                    # Find element range where x and y projections overlap
                     lo = hi = None
-                    for eid, x in enumerate(wire_positions):
-                        if x_min <= x <= x_max:
+                    for idx, (eid, x, y_lo, y_hi) in enumerate(wire_info):
+                        if x_min <= x <= x_max and y_min <= y_hi and y_max >= y_lo:
                             if lo is None:
-                                lo = eid
-                            hi = eid
+                                lo = idx
+                            hi = idx
 
-                    # If no matching elements, skip this hodo-chamber pair
                     if lo is None or hi is None:
                         continue
 
@@ -137,6 +156,7 @@ class GeometryService:
                     hi = min(n_elements - 1, hi + BUFFER)
 
                     # Map each chamber UID in this buffered range to the hodo UID
-                    for cham_elem in range(lo + 1, hi + 2): 
+                    for idx in range(lo, hi + 1):
+                        cham_elem = wire_info[idx][0]
                         cham_uid = cham_id * 1000 + cham_elem
                         self.c2h.setdefault(cham_uid, []).append(hodo_uid)
