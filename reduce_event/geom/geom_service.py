@@ -18,22 +18,85 @@ TX_MAX = 0.15  # maximum projected slope in X for hodo-to-chamber mapping
 TY_MAX = 0.10  # maximum projected slope in Y for hodo-to-chamber mapping
 BUFFER = 2  # number of elements to buffer on each side of matched range
 
+def get_plane_type(det_name: str, angle_from_vert: float) -> int:
+    if any(k in det_name for k in ["X", "T", "B"]):
+        return 1
+    elif any(k in det_name for k in ["U", "V"]):
+        return 2 if angle_from_vert > 0 else 3
+    elif any(k in det_name for k in ["Y", "L", "R"]):
+        return 4
+    else:
+        return -1  # Unknown
+    
+# def get_plane_type(det_name: str) -> int:
+#     if det_name.startswith("D"):
+#         return 1
+#     elif det_name.startswith("H"):
+#         return 0
+#     elif det_name.startswith("P"):
+#         return 2
+#     elif det_name.startswith("DP"):
+#         return 3
+#     else:
+#         return -1
+
+def line_crossing(x1, y1, x2, y2, x3, y3, x4, y4):
+    """
+    Checks if segment (x1, y1)-(x2, y2) intersects with (x3, y3)-(x4, y4).
+    """
+    tc = (x1 - x2) * (y3 - y1) + (y1 - y2) * (x1 - x3)
+    td = (x1 - x2) * (y4 - y1) + (y1 - y2) * (x1 - x4)
+    return tc * td < 0
+
 class Plane:
-    def __init__(self, detectorID, planeType, z0, n_elements, spacing, cellWidth, height, x0, y0, theta_z):
+    def __init__(self, detectorID, planeType, x0, y0, z0, n_elements, spacing, cellWidth,
+                 angle_from_vert, xoffset, height, theta_x, theta_y, theta_z, deltaW):
+
         self.detectorID = detectorID
         self.planeType = planeType
-        self.x0 = x0
-        self.y0 = y0
-        self.z0 = z0
         self.n_elements = n_elements
         self.spacing = spacing
         self.cellWidth = cellWidth
-        self.xoffset = 0.0
+        self.angle_from_vert = angle_from_vert  # radians
+        self.xoffset = xoffset
+        self.width = spacing * n_elements  
         self.height = height
+        self.x0 = x0
+        self.y0 = y0
+        self.z0 = z0
+        self.theta_x = theta_x
+        self.theta_y = theta_y
         self.theta_z = theta_z
-        self.costheta = 1.0
-        self.sintheta = 0.0
-        self.deltaW = 0.0
+
+        # Derived geometry variables
+        self.costheta = math.cos(angle_from_vert + theta_z)
+        self.sintheta = math.sin(angle_from_vert + theta_z)
+        self.tantheta = math.tan(angle_from_vert + theta_z)
+
+        self.y1 = y0 - 0.5 * height
+        self.y2 = y0 + 0.5 * height
+        self.deltaW = deltaW  
+        self.deltaX = self.deltaW * self.costheta  
+    
+    def get_wire_endpoints(self, elementID):
+        """
+        Returns the (x_min, x_max, y_min, y_max) endpoints of a slanted wire in 2D
+        following the same logic as GeomSvc::getWireEndPoints in C++
+        """
+        y_min = self.y1
+        y_max = self.y2
+
+        mid_index = (self.n_elements + 1) / 2.0
+        dw = self.xoffset + self.spacing * (elementID - mid_index)
+
+        x_center = (self.x0 + self.deltaX) + dw * math.cos(self.theta_z)
+        tan_theta = math.tan(self.theta_z)
+        dx = 0.5 * abs(tan_theta * (y_max - y_min))
+
+        x_min = x_center - dx
+        x_max = x_center + dx
+
+        return x_min, x_max, y_min, y_max
 
     def get_wire_position(self, elementID):
         mid_index = (self.n_elements + 1) / 2.0
@@ -44,12 +107,30 @@ class Plane:
         return x_pos
 
     def get_2d_box_size(self, elementID):
-        x_center = self.get_wire_position(elementID)
-        x_min = x_center - 0.5 * self.cellWidth
-        x_max = x_center + 0.5 * self.cellWidth
+        """
+        Python translation of GeomSvc::get2DBoxSize.
+        Returns (x_min, x_max, y_min, y_max) for the element's 2D box.
+        """
+        if self.planeType == 1:
+            # Get x_center from wire position
+            x_center = self.get_wire_position(elementID)
+            x_width = 0.5 * self.cellWidth
 
-        y_min = self.y0 - 0.5 * self.height
-        y_max = self.y0 + 0.5 * self.height
+            x_min = x_center - x_width
+            x_max = x_center + x_width
+
+            y_min = self.y1
+            y_max = self.y2
+        else:
+            # For slanted planes, box is vertical
+            y_center = self.get_wire_position(elementID)
+            y_width = 0.5 * self.cellWidth
+
+            y_min = y_center - y_width
+            y_max = y_center + y_width
+
+            x_min = self.x0 - 0.5 * self.width
+            x_max = self.x0 + 0.5 * self.width
 
         return x_min, x_max, y_min, y_max
 
@@ -71,15 +152,20 @@ class GeometryService:
         for det_id, row in enumerate(df.itertuples(), start=1):
             plane = Plane(
                 detectorID=det_id,
-                planeType=1,
+                planeType=get_plane_type(row.det_name, row.angle_from_vert),
                 x0=row.x0,
-                y0 = row.y0,
+                y0=row.y0,
                 z0=row.z0,
                 height=row.height,
                 n_elements=row.n_ele,
                 spacing=row.cell_spacing,
                 cellWidth=row.cell_width,
-                theta_z=row.theta_z
+                angle_from_vert=row.angle_from_vert,
+                xoffset=row.xoffset,
+                theta_x=row.theta_x,
+                theta_y=row.theta_y,
+                theta_z=row.theta_z,
+                deltaW=0.0   # Assuming deltaW is not provided in the TSV, set to 0.0
             )
             self.detectors[det_id] = plane
 
@@ -139,7 +225,7 @@ class GeometryService:
                         )
                         for eid in range(1, n_elements + 1)
                     ]
-
+                
                     # Find element range where x and y projections overlap
                     lo = hi = None
                     for idx, (eid, x, y_lo, y_hi) in enumerate(wire_info):
