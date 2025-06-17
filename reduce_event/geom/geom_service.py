@@ -2,6 +2,7 @@
 
 import pandas as pd
 import math
+import bisect
 
 CHAM_LUT_MAP = {
     31: [1, 2, 3, 4, 5, 6],        # H1B → D0U, D0Up, D0X, D0Xp, D0V, D0Vp
@@ -27,18 +28,6 @@ def get_plane_type(det_name: str, angle_from_vert: float) -> int:
         return 4
     else:
         return -1  # Unknown
-    
-# def get_plane_type(det_name: str) -> int:
-#     if det_name.startswith("D"):
-#         return 1
-#     elif det_name.startswith("H"):
-#         return 0
-#     elif det_name.startswith("P"):
-#         return 2
-#     elif det_name.startswith("DP"):
-#         return 3
-#     else:
-#         return -1
 
 def line_crossing(x1, y1, x2, y2, x3, y3, x4, y4):
     """
@@ -76,7 +65,14 @@ class Plane:
         self.y1 = y0 - 0.5 * height
         self.y2 = y0 + 0.5 * height
         self.deltaW = deltaW  
-        self.deltaX = self.deltaW * self.costheta  
+        self.deltaX = self.deltaW * self.costheta
+        
+        self.elementPos = [
+            ((i - (n_elements + 1) / 2.0) * spacing + xoffset +
+            x0 * self.costheta + y0 * self.sintheta + deltaW)
+            for i in range(1, n_elements + 1)
+        ]
+        self.elementPos.sort()
     
     def get_wire_endpoints(self, elementID):
         """
@@ -215,34 +211,81 @@ class GeometryService:
 
                     n_elements = self.get_n_elements(cham_id)
 
-                    # Store (eid, x_pos, y_min, y_max) for chamber wires
-                    wire_info = [
-                        (
-                            eid,
-                            self.detectors[cham_id].get_wire_position(eid),
-                            self.detectors[cham_id].y0 - 0.5 * self.detectors[cham_id].height,
-                            self.detectors[cham_id].y0 + 0.5 * self.detectors[cham_id].height,
-                        )
-                        for eid in range(1, n_elements + 1)
-                    ]
-                
-                    # Find element range where x and y projections overlap
-                    lo = hi = None
-                    for idx, (eid, x, y_lo, y_hi) in enumerate(wire_info):
-                        if x_min <= x <= x_max and y_min <= y_hi and y_max >= y_lo:
-                            if lo is None:
-                                lo = idx
-                            hi = idx
+                    plane_type = self.get_plane_type(cham_id)
 
-                    if lo is None or hi is None:
-                        continue
+                    if plane_type == 1:
+                        elementID_lo = self.get_exp_element_id(cham_id, x_min)
+                        elementID_hi = self.get_exp_element_id(cham_id, x_max)
+                                               
+                    else:
+                        # elementID_lo = n_elements
+                        # elementID_hi = 0
+                        # for m in range(1, n_elements + 1):
+                        #     x1, x2, y1, y2 = self.detectors[cham_id].get_wire_endpoints(m)
 
-                    # Apply ±2 element buffer
-                    lo = max(0, lo - BUFFER)
-                    hi = min(n_elements - 1, hi + BUFFER)
+                        #     if not line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2) and \
+                        #     not line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2):
+                        #         continue
 
-                    # Map each chamber UID in this buffered range to the hodo UID
-                    for idx in range(lo, hi + 1):
-                        cham_elem = wire_info[idx][0]
-                        cham_uid = cham_id * 1000 + cham_elem
+                        #     if m < elementID_lo:
+                        #         elementID_lo = m
+                        #     if m > elementID_hi:
+                        #         elementID_hi = m
+                        wire_info = [
+                            (
+                                eid,
+                                self.detectors[cham_id].get_wire_position(eid),
+                                self.detectors[cham_id].y0 - 0.5 * self.detectors[cham_id].height,
+                                self.detectors[cham_id].y0 + 0.5 * self.detectors[cham_id].height,
+                            )
+                            for eid in range(1, n_elements + 1)
+                        ]
+                    
+                        # Find element range where x and y projections overlap
+                        elementID_lo = elementID_hi = None
+                        for idx, (eid, x, y_lo, y_hi) in enumerate(wire_info):
+                            if x_min <= x <= x_max and y_min <= y_hi and y_max >= y_lo:
+                                if elementID_lo is None:
+                                    elementID_lo = eid
+                                elementID_hi = eid
+
+                        if elementID_lo is None or elementID_hi is None:
+                            continue
+
+                    # Apply ±BUFFER
+                    elementID_lo = max(1, elementID_lo - BUFFER)
+                    elementID_hi = min(n_elements, elementID_hi + BUFFER)
+
+                    # Map range to hodo UID
+                    for eid in range(elementID_lo, elementID_hi + 1):
+                        cham_uid = cham_id * 1000 + eid
                         self.c2h.setdefault(cham_uid, []).append(hodo_uid)
+
+    def get_exp_element_id(self, detectorID, pos_exp):
+        plane = self.detectors[detectorID]
+        element_pos = plane.elementPos
+        if not element_pos:
+            return -1  # or raise exception
+
+        pos_min = element_pos[0] - 0.5 * plane.cellWidth
+        pos_max = element_pos[-1] + 0.5 * plane.cellWidth
+
+        if pos_exp > pos_max:
+            return plane.n_elements + 1
+        if pos_exp < pos_min:
+            return 0
+
+        index = bisect.bisect_left(element_pos, pos_exp)
+        if index < len(element_pos):
+            adjustment = -1 if (element_pos[index] - pos_exp) > 0.5 * plane.spacing else 0
+            element_id = index + 1 + adjustment
+        else:
+            element_id = plane.n_elements
+
+        # Optional flip logic for dark photon detectors (detectorID > 30 assumed)
+        if detectorID > 30:
+            bottom = ((detectorID - 55) & 2) > 0
+            if bottom:
+                element_id = plane.n_elements + 1 - element_id
+
+        return element_id
