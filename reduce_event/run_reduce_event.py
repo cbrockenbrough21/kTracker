@@ -100,8 +100,11 @@ def run_reduction(input_file, output_file, **kwargs):
     print(f"Total runtime:  {total_end - total_start:.2f} s")
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/negMuon_10000_noisy.root" 
-    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/negMuon_10000_cleaned.root" 
+    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root" 
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned.root" 
+
+    # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
+    # output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
 
     run_reduction(
         input_file=input_file,

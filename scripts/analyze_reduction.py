@@ -58,8 +58,8 @@ def analyze_reduction(original_file, noisy_file, reduced_file):
 
 
 if __name__ == "__main__":
-    original_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/small_combined.root"
-    noisy_file = "/project/ptgroup/Catherine/kTracker/data/noisy/small_combined_varied_hits.root" 
-    reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/small_combined_cleaned.root" 
+    original_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_JPsi_Pythia8_Target_April17_10000.root"
+    noisy_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
+    reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
     analyze_reduction(original_file, noisy_file, reduced_file)
   
