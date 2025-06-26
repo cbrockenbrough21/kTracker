@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "print_det_id.C": "cpp"
+        "print_det_id.C": "cpp",
+        "Fun4Sim.C": "cpp"
     }
 }
