@@ -70,12 +70,14 @@ def plot_event_difference(original_file, noisy_file, reduced_file, event_number)
 
     plt.legend(handles=legend, loc="upper right")
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"event_{event_number}_difference.png", dpi=300)
+    plt.close()
+
 
 if __name__ == "__main__":
     plot_event_difference(
-        original_file="/project/ptgroup/Catherine/kTracker/data/small_raw/negMuon_10000.root",
-        noisy_file="/project/ptgroup/Catherine/kTracker/data/noisy/negMuon_10000_noisy.root",
-        reduced_file="/project/ptgroup/Catherine/kTracker/data/cleaned/negMuon_10000_cleaned.root",
+        original_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_JPsi_Pythia8_Target_April17_10000.root",
+        noisy_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root",
+        reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root", 
         event_number=20
     )

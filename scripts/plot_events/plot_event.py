@@ -1,7 +1,9 @@
 import uproot
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 
 def plot_comparison(file_paths, labels, event_number):
     num_files = len(file_paths)
@@ -35,19 +37,20 @@ def plot_comparison(file_paths, labels, event_number):
                 ax.set_ylabel("Element ID")
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig(f"event_{event_number}_{label}.png", dpi=300) 
+    plt.close()
 
 if __name__ == "__main__":
     plot_comparison(
         file_paths=[
-            "/project/ptgroup/Catherine/kTracker/data/small_raw/small_combined.root",
-            "/project/ptgroup/Catherine/kTracker/data/noisy/small_combined_varied_hits.root",
-            "/project/ptgroup/Catherine/kTracker/data/cleaned/small_combined_cleaned.root"
+            "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_JPsi_Pythia8_Target_April17_10000.root",
+            "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root",
+            "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root", 
         ],
         labels=[
             "Original",
             "Noisy",
             "Reduced"
         ],
-        event_number=5  # Change this as needed
+        event_number=15  # Change this as needed
     )
