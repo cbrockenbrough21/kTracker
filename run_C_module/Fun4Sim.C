@@ -10,7 +10,7 @@ R__LOAD_LIBRARY(libktracker)
 R__LOAD_LIBRARY(libSQPrimaryGen)
 R__LOAD_LIBRARY(libcalibrator)
 
-int Fun4Sim(const int n_evt = 200000) {
+int Fun4Sim(const int n_evt = 1000) {
   const double FMAGSTR = -1.044;
   const double KMAGSTR = -1.025;
 
@@ -32,16 +32,16 @@ int Fun4Sim(const int n_evt = 200000) {
 
   // Tracking module with EventReducer
   SQReco *reco = new SQReco();
-  reco->Verbosity(1);
+  reco->Verbosity(100);
   reco->set_legacy_rec_container(true); // keep default true
   reco->set_geom_file_name((string)gSystem->Getenv("E1039_RESOURCE") + "/geometry/geom_run005433.root");
   reco->set_enable_KF(true); // Optional Kalman Filter
   reco->setInputTy(SQReco::E1039);
   reco->setFitterTy(SQReco::KFREF);
-  reco->set_evt_reducer_opt("aoc");  // Enable reducer here
-  reco->set_enable_eval(true);
+  reco->set_evt_reducer_opt("h");  // Enable reducer here - h for hodomask
+  reco->set_enable_eval(false);
   reco->set_eval_file_name("eval.root");
-  reco->set_enable_eval_dst(true);
+  reco->set_enable_eval_dst(false);
   for (int ii = 0; ii <= 3; ii++) reco->add_eval_list(ii);
   se->registerSubsystem(reco);
 
