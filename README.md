@@ -62,7 +62,7 @@ python3 run_reduce_event.py
 You can modify parameters inside the script to control:
 
 - input_file and output_file
-- Filters to apply: outoftime=True, decluster=True, dedup=True, etc.
+- Filters to apply: outoftime=True, decluster=True, dedup=True, hodomask=True etc.
 
 Set the branches that are HIT vectors to be filtered when rewriting the file so all HIT vectors remain the same size
 
