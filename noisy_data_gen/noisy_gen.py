@@ -4,8 +4,8 @@ import argparse
 
 # Noise settings
 P_ELECTRONIC_NOISE = 0.01
-P_CLUSTER_NOISE = 0.05
-CLUSTER_LENGTH_RANGE = (2, 4)
+P_CLUSTER_NOISE = 0.05 #Increase this to increase cluster frequency
+CLUSTER_LENGTH_RANGE = (2, 4) # Will make the amount of clustering in a line more
 
 NUM_DETECTORS = 62
 NUM_ELEMENT_IDS = 201
