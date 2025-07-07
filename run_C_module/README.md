@@ -19,6 +19,36 @@ Or run it normally using:
 root -b -q 'Fun4Sim.C(1000, "input.root", "output.root")'
 ```
 
+Reducer Options
+The event reducer options can be set in the line:
+
+`reco->set_evt_reducer_opt("h"); `
+
+You can change the string passed to set_evt_reducer_opt to enable different combinations of reduction options. The following flags are supported:
+
+a → afterhit
+
+h → hodomask
+
+o → outoftime
+
+c → decluster
+
+m → mergehodo
+
+t → triggermask
+
+s → sagitta
+
+g → hough
+
+r → realization
+
+n → difnim
+
+For example, to enable both the hodomask and decluster reducers, you would set:
+
+`reco->set_evt_reducer_opt("hc");`
 
 
 ## How to use the Python filter script
