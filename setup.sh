@@ -2,6 +2,10 @@
 
 echo "Loading required modules..."
 
+export LD_LIBRARY_PATH=/project/ptgroup/Catherine/Fun4AllVectFileManager/Fun4AllVectFileManager/inst/lib:$LD_LIBRARY_PATH
+
+source /project/ptgroup/spinquest/this-e1039.sh
+
 # Load dependencies for Python
 module load gcc/11.4.0
 module load openmpi/4.1.4
