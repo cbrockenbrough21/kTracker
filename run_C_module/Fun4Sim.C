@@ -10,7 +10,7 @@ R__LOAD_LIBRARY(libktracker)
 R__LOAD_LIBRARY(libSQPrimaryGen)
 R__LOAD_LIBRARY(libcalibrator)
 
-int Fun4Sim(const int n_evt = 1000) {
+int Fun4Sim(const int n_evt = 1) {
   const double FMAGSTR = -1.044;
   const double KMAGSTR = -1.025;
 
@@ -21,6 +21,11 @@ int Fun4Sim(const int n_evt = 1000) {
   rc->set_DoubleFlag("SIGX_BEAM", 0.3);
   rc->set_DoubleFlag("SIGY_BEAM", 0.3);
   rc->set_DoubleFlag("Z_UPSTREAM", -700.);
+
+  rc->set_CharFlag("AlignmentMille", "");
+  rc->set_CharFlag("AlignmentHodo", "");
+  rc->set_CharFlag("AlignmentProp", "");
+  rc->set_CharFlag("Calibration", "");
 
   Fun4AllServer *se = Fun4AllServer::instance();
   se->Verbosity(1);

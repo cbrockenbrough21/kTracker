@@ -71,10 +71,10 @@ D	Z_ST2	1347.36
 D	Z_ST3	1910
 D	Z_TARGET	-300
 D	Z_UPSTREAM	-700
-C	AlignmentHodo	/sfs/gpfs/tardis/project/ptgroup/spinquest/resource/alignment/run6/alignment_hodo.txt
-C	AlignmentMille	/sfs/gpfs/tardis/project/ptgroup/spinquest/resource/alignment/run6/align_mille.txt
-C	AlignmentProp	/sfs/gpfs/tardis/project/ptgroup/spinquest/resource/alignment/run6/alignment_prop.txt
-C	Calibration	/sfs/gpfs/tardis/project/ptgroup/spinquest/resource/alignment/run6/calibration.txt
+C	AlignmentHodo	
+C	AlignmentMille	
+C	AlignmentProp	
+C	Calibration	
 C	DB_SERVER	DB1
 C	DB_USER	seaguest
 C	EventReduceOpts	aoc
