@@ -1,5 +1,6 @@
 import subprocess
 import re
+import argparse
 
 def filter_root_output(command, output_file="filtered_output.txt"):
     # Compile regex for speed
@@ -35,6 +36,29 @@ def filter_root_output(command, output_file="filtered_output.txt"):
             print(f"Command failed with code {proc.returncode}")
 
 if __name__ == "__main__":
-    # edit to your ROOT command:
-    root_cmd = 'root -b -q Fun4Sim.C'
-    filter_root_output(root_cmd, "filtered_output.txt")
+    parser = argparse.ArgumentParser(description="Run Fun4Sim and filter the ROOT output.")
+    parser.add_argument(
+        "--n_events", type=int, default=1000,
+        help="Number of events to run in Fun4Sim (default: 1000)"
+    )
+    parser.add_argument(
+        "--input_file", type=str, default="my_input.root",
+        help="Input ROOT file path for Fun4Sim (default: my_input.root)"
+    )
+    parser.add_argument(
+        "--output_file", type=str, default="cleaned_output.root",
+        help="Output ROOT file path for Fun4Sim (default: cleaned_output.root)"
+    )
+    parser.add_argument(
+        "--filtered_file", type=str, default="filtered_output.txt",
+        help="Where to save the filtered text output (default: filtered_output.txt)"
+    )
+
+    args = parser.parse_args()
+
+    # build the root command dynamically
+    root_cmd = (
+        f'root -b -q \'Fun4Sim.C({args.n_events},"{args.input_file}","{args.output_file}")\''
+    )
+
+    filter_root_output(root_cmd, args.filtered_file)
