@@ -3,6 +3,7 @@
 import pandas as pd
 import math
 import bisect
+from reduce_event.reco_constants import N_CHAMBER_PLANES, N_HODO_PLANES, N_PROP_PLANES, TX_MAX, TY_MAX, BUFFER
 
 CHAM_LUT_MAP = {
     31: [1, 2, 3, 4, 5, 6],        # H1B → D0U, D0Up, D0X, D0Xp, D0V, D0Vp
@@ -13,24 +14,14 @@ CHAM_LUT_MAP = {
 
     40: [19, 20, 21, 22, 23, 24],  # H3T → D3pVp, D3pV, D3pXp, D3pX, D3pUp, D3pU
     39: [25, 26, 27, 28, 29, 30],  # H3B → D3mVp, D3mV, D3mXp, D3mX, D3mUp, D3mU
+    
+    46: [],  # H4B
+    47: [],  # H4T
 }
-
-TX_MAX = 0.15  # maximum projected slope in X for hodo-to-chamber mapping
-TY_MAX = 0.10  # maximum projected slope in Y for hodo-to-chamber mapping
-BUFFER = 2  # number of elements to buffer on each side of matched range
-
-def get_plane_type(det_name: str, angle_from_vert: float) -> int:
-    if any(k in det_name for k in ["X", "T", "B"]):
-        return 1
-    elif any(k in det_name for k in ["U", "V"]):
-        return 2 if angle_from_vert > 0 else 3
-    elif any(k in det_name for k in ["Y", "L", "R"]):
-        return 4
-    else:
-        return -1  # Unknown
 
 def line_crossing(x1, y1, x2, y2, x3, y3, x4, y4):
     """
+    Python translation of EventReducer::lineCrossing in C++ (EventReducer.cxx).
     Checks if segment (x1, y1)-(x2, y2) intersects with (x3, y3)-(x4, y4).
     """
     tc = (x1 - x2) * (y3 - y1) + (y1 - y2) * (x1 - x3)
@@ -38,44 +29,110 @@ def line_crossing(x1, y1, x2, y2, x3, y3, x4, y4):
     return tc * td < 0
 
 class Plane:
-    def __init__(self, detectorID, planeType, x0, y0, z0, n_elements, spacing, cellWidth,
-                 angle_from_vert, xoffset, height, theta_x, theta_y, theta_z, deltaW):
+    def __init__(self, detector_id, detector_name, x0, y0, z0, n_elements, spacing, cell_width,
+                 angle_from_vert, xoffset, height, theta_x, theta_y, theta_z, delta_w,
+                 plane_type=None):  # Plane type is optional
+        # --- Detector identifier ---
+        self.detector_id = detector_id
+        self.detector_name = detector_name
 
-        self.detectorID = detectorID
-        self.planeType = planeType
+        # --- Ideal properties ---
         self.n_elements = n_elements
         self.spacing = spacing
-        self.cellWidth = cellWidth
-        self.angle_from_vert = angle_from_vert  # radians
+        self.cell_width = cell_width
         self.xoffset = xoffset
-        self.width = spacing * n_elements  
-        self.height = height
-        self.x0 = x0
+        self.overlap = cell_width - spacing
+        self.angle_from_vert = angle_from_vert  # radians
+        
+        # Infer planeType if not provided
+        if plane_type is None:
+            self.planeType = self.infer_plane_type()
+        else:
+            self.planeType = plane_type
+
+        # Trigonometric setup using rZ (future-proofed for alignment)
+        self.rZ = theta_z  # rotZ defaults to 0 for now
+        self.costheta = math.cos(angle_from_vert + self.rZ)
+        self.sintheta = math.sin(angle_from_vert + self.rZ)
+        self.tantheta = math.tan(angle_from_vert + self.rZ)
+
+        # --- Survey info ---
+        self.x0 = x0  # center of detector
         self.y0 = y0
         self.z0 = z0
+
+        self.width = spacing * n_elements
+        self.height = height
+
+        self.x1 = self.x0 - 0.5 * self.width
+        self.x2 = self.x0 + 0.5 * self.width
+        self.y1 = self.y0 - 0.5 * height
+        self.y2 = self.y0 + 0.5 * height
+        self.z1 = None  # optional
+        self.z2 = None  # optional
+
         self.theta_x = theta_x
         self.theta_y = theta_y
         self.theta_z = theta_z
 
-        # Derived geometry variables
-        self.costheta = math.cos(angle_from_vert + theta_z)
-        self.sintheta = math.sin(angle_from_vert + theta_z)
-        self.tantheta = math.tan(angle_from_vert + theta_z)
+        # --- Alignment info ---
+        self.delta_w = delta_w
+        self.deltaX = self.delta_w * self.costheta
+        self.deltaY = self.delta_w * self.sintheta
+        self.deltaZ = 0.0
+        self.deltaW_module = [0.0] * 9  # for prop tubes, unused
+        self.rotX = 0.0
+        self.rotY = 0.0
+        self.rotZ = 0.0
+        self.resolution = 0.0
 
-        self.y1 = y0 - 0.5 * height
-        self.y2 = y0 + 0.5 * height
-        self.deltaW = deltaW  
-        self.deltaX = self.deltaW * self.costheta
-        
+        # --- Final position/rotation (unused now) ---
+        self.xc = self.x0 + self.deltaX
+        self.yc = self.y0 + self.deltaY
+        self.zc = self.z0 + self.deltaZ
+        self.wc = self.xc * self.costheta + self.yc * self.sintheta
+        self.rX = self.theta_x + self.rotX
+        self.rY = self.theta_y + self.rotY
+        self.rZ = self.theta_z + self.rotZ  # already set above, redundancy ok
+
+        # --- Geometric setup (unused vectors for now) ---
+        self.nVec = None
+        self.uVec = None
+        self.vVec = None
+        self.xVec = None
+        self.yVec = None
+        self.rotM = None
+
+        # --- Calibration info (not used yet) ---
+        self.tmin = None
+        self.tmax = None
+        self.rtprofile = None
+
+        # --- Wire positions (like C++ elementPos) ---
         self.elementPos = [
             ((i - (n_elements + 1) / 2.0) * spacing + xoffset +
-            x0 * self.costheta + y0 * self.sintheta + deltaW)
+             x0 * self.costheta + y0 * self.sintheta + delta_w)
             for i in range(1, n_elements + 1)
         ]
         self.elementPos.sort()
     
+    def infer_plane_type(self):
+        """
+        GeomSvc.cxx lines 481-497
+        """
+        if any(k in self.detector_name for k in ["X", "T", "B"]):
+            return 1
+        elif any(k in self.detector_name for k in ["U", "V"]):
+            return 2 if self.angle_from_vert > 0 else 3
+        elif any(k in self.detector_name for k in ["Y", "L", "R"]):
+            return 4
+        else:
+            return -1
+    
     def get_wire_endpoints(self, elementID):
         """
+        Python translation of GeomSvc::getWireEndPoints() in C++ (GeomSvc.cxx).
+        
         Returns the (x_min, x_max, y_min, y_max) endpoints of a slanted wire in 2D
         following the same logic as GeomSvc::getWireEndPoints in C++
         """
@@ -95,11 +152,16 @@ class Plane:
         return x_min, x_max, y_min, y_max
 
     def get_wire_position(self, elementID):
-        mid_index = (self.n_elements + 1) / 2.0
-        dw = self.spacing * (elementID - mid_index) + self.xoffset
-        angle = self.theta_z  # already in radians
+        """
+        Python translation of GeomSvc::getWirePosition() in C++ (GeomSvc.cxx).
 
-        x_pos = self.x0 * math.cos(angle) + self.y0 * math.sin(angle) + dw + self.deltaW
+        Calculates the projected wire position in the rotated frame using
+        the detector center (x0, y0), slant angle, and alignment offset deltaW.
+        """
+        
+        mid_index = (self.n_elements + 1) / 2.0
+        dw = (elementID - mid_index) * self.spacing + self.xoffset #displacement of wire
+        x_pos = dw + self.x0 * self.costheta + self.y0 * self.sintheta + self.delta_w
         return x_pos
 
     def get_2d_box_size(self, elementID):
@@ -110,7 +172,7 @@ class Plane:
         if self.planeType == 1:
             # Get x_center from wire position
             x_center = self.get_wire_position(elementID)
-            x_width = 0.5 * self.cellWidth
+            x_width = 0.5 * self.cell_width
 
             x_min = x_center - x_width
             x_max = x_center + x_width
@@ -120,7 +182,7 @@ class Plane:
         else:
             # For slanted planes, box is vertical
             y_center = self.get_wire_position(elementID)
-            y_width = 0.5 * self.cellWidth
+            y_width = 0.5 * self.cell_width
 
             y_min = y_center - y_width
             y_max = y_center + y_width
@@ -147,21 +209,21 @@ class GeometryService:
 
         for det_id, row in enumerate(df.itertuples(), start=1):
             plane = Plane(
-                detectorID=det_id,
-                planeType=get_plane_type(row.det_name, row.angle_from_vert),
+                detector_id=det_id,
+                detector_name=row.det_name,
                 x0=row.x0,
                 y0=row.y0,
                 z0=row.z0,
                 height=row.height,
                 n_elements=row.n_ele,
                 spacing=row.cell_spacing,
-                cellWidth=row.cell_width,
+                cell_width=row.cell_width,
                 angle_from_vert=row.angle_from_vert,
                 xoffset=row.xoffset,
                 theta_x=row.theta_x,
                 theta_y=row.theta_y,
                 theta_z=row.theta_z,
-                deltaW=0.0   # Assuming deltaW is not provided in the TSV, set to 0.0
+                delta_w=0.0   # Assuming deltaW is not provided in the TSV, set to 0.0 
             )
             self.detectors[det_id] = plane
 
@@ -261,14 +323,17 @@ class GeometryService:
                         cham_uid = cham_id * 1000 + eid
                         self.c2h.setdefault(cham_uid, []).append(hodo_uid)
 
-    def get_exp_element_id(self, detectorID, pos_exp):
-        plane = self.detectors[detectorID]
+    def get_exp_element_id(self, detector_id, pos_exp):
+        """
+        Python translation of GeomSvc::getExpElementID in C++ (GeomSvc.cxx).
+        """
+        plane = self.detectors[detector_id]
         element_pos = plane.elementPos
         if not element_pos:
             return -1  # or raise exception
 
-        pos_min = element_pos[0] - 0.5 * plane.cellWidth
-        pos_max = element_pos[-1] + 0.5 * plane.cellWidth
+        pos_min = element_pos[0] - 0.5 * plane.cell_width
+        pos_max = element_pos[-1] + 0.5 * plane.cell_width
 
         if pos_exp > pos_max:
             return plane.n_elements + 1
@@ -282,9 +347,8 @@ class GeometryService:
         else:
             element_id = plane.n_elements
 
-        # Optional flip logic for dark photon detectors (detectorID > 30 assumed)
-        if detectorID > 30:
-            bottom = ((detectorID - 55) & 2) > 0
+        if detector_id > N_CHAMBER_PLANES + N_HODO_PLANES + N_PROP_PLANES:
+            bottom = ((detector_id - 55) & 2) > 0
             if bottom:
                 element_id = plane.n_elements + 1 - element_id
 
