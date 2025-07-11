@@ -65,6 +65,7 @@ def run_reduction(input_file, output_file, **kwargs):
         tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv"
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
+        geom.dump_geometry_summary()
         HODO_IDS = {31, 32, 37, 38, 39, 40}
 
     read_filter_start = time.perf_counter()

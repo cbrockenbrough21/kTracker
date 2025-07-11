@@ -139,7 +139,7 @@ class Plane:
              x0 * self.costheta + y0 * self.sintheta + delta_w)
             for i in range(1, n_elements + 1)
         ]
-        ##self.elementPos.sort()
+        #self.elementPos.sort() - doesnt change accuracy 
     
     def infer_plane_type(self):
         """
@@ -263,10 +263,10 @@ class GeometryService:
         for row in df.itertuples():
             det_name = row.det_name.strip()
             if det_name not in name_to_id:
-                print(f"[WARNING] Detector name '{det_name}' not in name-to-ID mapping. Skipping.")
+                #print(f"[WARNING] Detector name '{det_name}' not in name-to-ID mapping. Skipping.")
                 continue
-
-            det_id = name_to_id[det_name]
+            else:
+                det_id = name_to_id[det_name]
             plane = Plane(
                 detector_id=det_id,
                 detector_name=row.det_name,
@@ -287,6 +287,7 @@ class GeometryService:
             self.detectors[det_id] = plane
 
         self.init_hodo_mask_lut()
+        #self.init_hodo_mask_lut_new()
     
     def dump_geometry_summary(self, output_path="geometry_dump.tsv"):
         rows = []
@@ -294,6 +295,7 @@ class GeometryService:
             row = {
                 "detector_id": det_id,
                 "detector_name": plane.detector_name,
+                "plane": plane.planeType,
                 "n_elements": plane.n_elements,
                 "spacing": plane.spacing,
                 "xoffset": plane.xoffset,
@@ -367,39 +369,45 @@ class GeometryService:
                         elementID_hi = self.get_exp_element_id(cham_id, x_max)
                                                
                     else:
-                        # elementID_lo = n_elements
-                        # elementID_hi = 0
-                        # for m in range(1, n_elements + 1):
-                        #     x1, x2, y1, y2 = self.detectors[cham_id].get_wire_endpoints(m)
+                        if cham_id in [13, 14, 15, 16, 17, 18]:
+                            print(f"\n== Debug cham_id: {cham_id} ==")
+                            print(f"x_min = {x_min}, x_max = {x_max}")
+                            print(f"y_min = {y_min}, y_max = {y_max}")
 
-                        #     if not line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2) and \
-                        #     not line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2):
-                        #         continue
+                        detector = self.detectors[cham_id]
 
-                        #     if m < elementID_lo:
-                        #         elementID_lo = m
-                        #     if m > elementID_hi:
-                        #         elementID_hi = m
-                        wire_info = [
-                            (
-                                eid,
-                                self.detectors[cham_id].get_wire_position(eid),
-                                self.detectors[cham_id].y0 - 0.5 * self.detectors[cham_id].height,
-                                self.detectors[cham_id].y0 + 0.5 * self.detectors[cham_id].height,
-                            )
-                            for eid in range(1, n_elements + 1)
-                        ]
-                    
-                        # Find element range where x and y projections overlap
-                        elementID_lo = elementID_hi = None
-                        for idx, (eid, x, y_lo, y_hi) in enumerate(wire_info):
-                            if x_min <= x <= x_max and y_min <= y_hi and y_max >= y_lo:
-                                if elementID_lo is None:
-                                    elementID_lo = eid
-                                elementID_hi = eid
+                        # Run both versions
+                        el_lo_len, el_hi_len = get_element_range_lenient(detector, n_elements, x_min, x_max, y_min, y_max)
+                        el_lo_cross, el_hi_cross = get_element_range_crossing(detector, cham_id, n_elements, x_min, x_max, y_min, y_max)
 
-                        if elementID_lo is None or elementID_hi is None:
-                            continue
+                        # Print side-by-side debug output
+                        if cham_id in [13, 14, 15, 16, 17, 18]:
+                            print(f"[Lenient] → Range: {el_lo_len}–{el_hi_len}" if el_lo_len else "[Lenient] → No elements found")
+                            print(f"[Crossing] → Range: {el_lo_cross}–{el_hi_cross}" if el_lo_cross else "[Crossing] → No elements found")
+                        
+                        # elementID_lo = el_lo_len
+                        # elementID_hi = el_hi_len
+                        
+                        # if elementID_lo is None or elementID_hi is None:
+                        #     continue
+                        
+                        if el_lo_len is not None and el_lo_cross is not None:
+                            elementID_lo = min(el_lo_len, el_lo_cross)
+                        elif el_lo_len is not None:
+                            elementID_lo = el_lo_len
+                        elif el_lo_cross is not None:
+                            elementID_lo = el_lo_cross
+                        else:
+                            continue  # Skip this chamber if no lower bound
+
+                        if el_hi_len is not None and el_hi_cross is not None:
+                            elementID_hi = max(el_hi_len, el_hi_cross)
+                        elif el_hi_len is not None:
+                            elementID_hi = el_hi_len
+                        elif el_hi_cross is not None:
+                            elementID_hi = el_hi_cross
+                        else:
+                            continue  # Skip this chamber if no upper bound
 
                     # Apply ±BUFFER
                     elementID_lo = max(1, elementID_lo - BUFFER)
@@ -444,7 +452,7 @@ class GeometryService:
                         continue
                     
                     plane = self.detectors[cham_id]
-                    print(f"[DEBUG] Detector {cham_id}: elementPos[:3] = {plane.elementPos[:3]}, ... elementPos[-3:] = {plane.elementPos[-3:]}")
+                    #print(f"[DEBUG] Detector {cham_id}: elementPos[:3] = {plane.elementPos[:3]}, ... elementPos[-3:] = {plane.elementPos[-3:]}")
 
                     z = self.get_plane_position(cham_id)
                     x_min = x0_min - abs(TX_MAX * (z - z0))
@@ -454,23 +462,33 @@ class GeometryService:
 
                     elementID_lo = self.get_plane_n_elements(cham_id)
                     elementID_hi = 0
+                    
+                    n_elements = self.get_plane_n_elements(cham_id)
 
                     if self.get_plane_type(cham_id) == 1:
                         elementID_lo = self.get_exp_element_id(cham_id, x_min)
                         elementID_hi = self.get_exp_element_id(cham_id, x_max)
-                        print(f"[INFO] Straight chamber {cham_id}: x_min={x_min:.2f}, x_max={x_max:.2f} → el_lo={elementID_lo}, el_hi={elementID_hi}")
+                        #print(f"[INFO] Straight chamber {cham_id}: x_min={x_min:.2f}, x_max={x_max:.2f} → el_lo={elementID_lo}, el_hi={elementID_hi}")
 
                     else:
-                        for m in range(1, self.get_plane_n_elements(cham_id) + 1):
-                            x1, x2, y1, y2 = self.get_wire_endpoints(cham_id, m)
-                            if not line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2) and \
-                               not line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2):
-                                continue
-                            if m < elementID_lo:
-                                elementID_lo = m
-                            if m > elementID_hi:
-                                elementID_hi = m
-                        print(f"[INFO] Slanted chamber {cham_id}: el_lo={elementID_lo}, el_hi={elementID_hi}")
+                        if cham_id in [13, 14, 15, 16, 17, 18]:
+                            print(f"\n== Debug cham_id: {cham_id} ==")
+                            print(f"x_min = {x_min}, x_max = {x_max}")
+                            print(f"y_min = {y_min}, y_max = {y_max}")
+
+                        detector = self.detectors[cham_id]
+
+                        # Run both versions
+                        el_lo_len, el_hi_len = get_element_range_lenient(detector, n_elements, x_min, x_max, y_min, y_max)
+                        el_lo_cross, el_hi_cross = get_element_range_crossing(detector, cham_id, n_elements, x_min, x_max, y_min, y_max)
+
+                        # Print side-by-side debug output
+                        if cham_id in [13, 14, 15, 16, 17, 18]:
+                            print(f"[Lenient] → Range: {el_lo_len}–{el_hi_len}" if el_lo_len else "[Lenient] → No elements found")
+                            print(f"[Crossing] → Range: {el_lo_cross}–{el_hi_cross}" if el_lo_cross else "[Crossing] → No elements found")
+                        
+                        elementID_lo = el_lo_len
+                        elementID_hi = el_hi_len
        
                     # Apply ±BUFFER
                     elementID_lo = max(1, elementID_lo - 2)
@@ -498,7 +516,7 @@ class GeometryService:
         pos_min = element_pos[0] - 0.5 * plane.cell_width
         pos_max = element_pos[-1] + 0.5 * plane.cell_width
         
-        print(f"[DEBUG] get_exp_element_id for det {detector_id}: pos_exp={pos_exp:.2f}, pos_min={pos_min:.2f}, pos_max={pos_max:.2f}")
+        #print(f"[DEBUG] get_exp_element_id for det {detector_id}: pos_exp={pos_exp:.2f}, pos_min={pos_min:.2f}, pos_max={pos_max:.2f}")
 
         if pos_exp > pos_max:
             return plane.n_elements + 1
@@ -517,7 +535,55 @@ class GeometryService:
             if bottom:
                 element_id = plane.n_elements + 1 - element_id
 
-        print(f"[DEBUG] get_exp_element_id for det {detector_id}: pos_exp={pos_exp:.2f}, pos_min={pos_min:.2f}, pos_max={pos_max:.2f}, element_id={element_id}")
-        print(f"[DEBUG] elementPos for det {detector_id}: {plane.elementPos[:3]} ... {plane.elementPos[-3:]}")
+        #print(f"[DEBUG] get_exp_element_id for det {detector_id}: pos_exp={pos_exp:.2f}, pos_min={pos_min:.2f}, pos_max={pos_max:.2f}, element_id={element_id}")
+        #print(f"[DEBUG] elementPos for det {detector_id}: {plane.elementPos[:3]} ... {plane.elementPos[-3:]}")
 
         return element_id
+
+def get_element_range_lenient(detector, n_elements, x_min, x_max, y_min, y_max):
+    wire_info = [
+        (
+            eid,
+            detector.get_wire_position(eid),
+            detector.y0 - 0.5 * detector.height,
+            detector.y0 + 0.5 * detector.height,
+        )
+        for eid in range(1, n_elements + 1)
+    ]
+
+    elementID_lo = elementID_hi = None
+    for eid, x, y_lo, y_hi in wire_info:
+        if x_min <= x <= x_max and y_min <= y_hi and y_max >= y_lo:
+            if elementID_lo is None:
+                elementID_lo = eid
+            elementID_hi = eid
+    return elementID_lo, elementID_hi
+
+def get_element_range_crossing(detector, cham_id, n_elements, x_min, x_max, y_min, y_max):
+    elementID_lo = n_elements + 1
+    elementID_hi = 0
+    for m in range(1, n_elements + 1):
+        x1, x2, y1, y2 = detector.get_wire_endpoints(m)
+
+        crosses_left = line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2)
+        crosses_right = line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2)
+        
+        if cham_id == 18 and (m >= 41 and m<=55):
+            print(f"[DEBUG] Element {m}")
+            print(f"  Wire: ({x1:.3f}, {y1:.3f}) → ({x2:.3f}, {y2:.3f})")
+            print(f"  Crosses left? {crosses_left}")
+            print(f"  Crosses right? {crosses_right}")
+            print()
+
+        if not crosses_left and not crosses_right:
+            continue
+
+        if m < elementID_lo:
+            elementID_lo = m
+        if m > elementID_hi:
+            elementID_hi = m
+
+    if elementID_lo > elementID_hi:
+        return None, None
+    return elementID_lo, elementID_hi
+

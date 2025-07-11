@@ -89,7 +89,7 @@ def analyze_reduction_by_detector(original_file, noisy_file, reduced_file, max_e
 if __name__ == "__main__":
     # original_file = "/project/ptgroup/Catherine/kTracker/data/raw/MC_negMuon_Dump_Feb21.root"
     # noisy_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root"
-    # reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned_sagitta.root"
+    # reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned.root"
     
     original_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_JPsi_Pythia8_Target_April17_10000.root"
     noisy_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"

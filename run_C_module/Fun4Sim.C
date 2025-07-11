@@ -10,9 +10,9 @@ R__LOAD_LIBRARY(libktracker)
 R__LOAD_LIBRARY(libSQPrimaryGen)
 R__LOAD_LIBRARY(libcalibrator)
 
-int Fun4Sim(const int n_evt = 1,
-            const std::string& input_file = "input.root",
-            const std::string& output_file = "output.root") {
+int Fun4Sim(const int n_evt = 1000,
+            const std::string& input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root",
+            const std::string& output_file = "vMC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_Cleaned.root") {
   const double FMAGSTR = -1.044;
   const double KMAGSTR = -1.025;
 
