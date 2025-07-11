@@ -9,6 +9,7 @@ from filters.out_of_time_removal import remove_out_of_time_hits
 from filters.decluster_hits import decluster_hits
 from filters.deduplicate_hits import deduplicate_hits
 from reduce_event.filters.hodo_mask import hodo_mask
+from reduce_event.filters.sagitta import sagitta_reducer
 from utils.io_helpers import write_reduced
 from geom.geom_service import GeometryService
 
@@ -28,6 +29,9 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
     Returns:
         list[int]: Indices to keep
     """
+    
+    geom = kwargs.get("geom", None) 
+    
     keep_idx = list(range(len(detectorIDs)))
             
     if kwargs.get('dedup', False):
@@ -43,6 +47,12 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
         geom = kwargs['geom']
         hodo_ids = kwargs.get('hodo_ids', set())
         keep_idx = hodo_mask(detectorIDs, elementIDs, geom, hodo_ids, keep_idx)
+        
+    if kwargs.get('sagitta', False):
+        # Build hitlist of (detectorID, elementID) pairs
+        hitlist = [(detectorIDs[i], elementIDs[i]) for i in keep_idx]
+        keep_idx_local = sagitta_reducer(hitlist, geom, list(range(len(hitlist))))
+        keep_idx = [keep_idx[i] for i in keep_idx_local]
 
         
     return keep_idx
@@ -61,7 +71,7 @@ def run_reduction(input_file, output_file, **kwargs):
     
     geom = None
     HODO_IDS = set()
-    if kwargs.get('hodomask', False):
+    if kwargs.get('hodomask', False) or kwargs.get('sagitta', False):
         tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv"
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
@@ -100,8 +110,9 @@ def run_reduction(input_file, output_file, **kwargs):
     print(f"Total runtime:  {total_end - total_start:.2f} s")
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root" 
-    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned.root" 
+    input_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_negMuon_Dump_Feb21_10000.root"
+    # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root" 
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned_sagitta.root" 
 
     # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
     # output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
@@ -112,5 +123,6 @@ if __name__ == "__main__":
         outoftime=False,
         dedup=False,
         decluster=False,
-        hodomask=True
+        hodomask=False,
+        sagitta=True
     )

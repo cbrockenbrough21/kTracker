@@ -5,12 +5,17 @@ source /project/ptgroup/spinquest/this-e1039.sh
 
 echo "Loading required modules..."
 
-# Load dependencies for Python
+# Load dependencies for Python and Root
 module load gcc/11.4.0
 module load openmpi/4.1.4
 
+# If you want to use Rivanna python 
 # Load Python 3.11.4
 module load python/3.11.4
+
+
+# If you want to use conda environment
+# conda activate ~/uprootenv
 
 # Load Apptainer for TensorFlow
 module load apptainer/1.3.4
