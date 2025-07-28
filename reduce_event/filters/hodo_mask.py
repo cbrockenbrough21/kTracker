@@ -50,6 +50,6 @@ def hodo_mask(detectorIDs, elementIDs, geom, hodo_ids, keep_idx):
         list[int]: indices to keep after hodo masking
     """
     hodo_uids = extract_hodo_hits(detectorIDs, elementIDs, hodo_ids, keep_idx)
-    #return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2h, keep_idx)
+    return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2h, keep_idx)
 
-    return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2helementIDs, keep_idx)
+    #return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2helementIDs, keep_idx)
