@@ -2,7 +2,7 @@ import subprocess
 import re
 import argparse
 
-def filter_root_output(command_str, output_file="filtered_output.txt"):
+def filter_lut_debug(command_str, output_file="filtered_output.txt"):
     # Define patterns to capture LUT block
     start_lut_re = re.compile(r"\[HODO LUT DEBUG\] Starting LUT init")
     end_lut_re = re.compile(r"\[HODO LUT DEBUG\] Finished LUT init")
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--filtered_file", type=str, default="filtered_output.txt",
-        help="Where to save the filtered text output (default: filtered_output.txt)"
+        help="Where to save the filtered text output (default: filtered_lut_output.txt)"
     )
 
     args = parser.parse_args()
@@ -68,4 +68,4 @@ if __name__ == "__main__":
         f'root -b -q \'Fun4Sim.C({args.n_events}, "{args.input_file}", "{args.output_file}")\''
     )
 
-    filter_root_output(root_cmd, args.filtered_file)
+    filter_lut_debug(root_cmd, args.filtered_file)
