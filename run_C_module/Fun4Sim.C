@@ -10,7 +10,9 @@ R__LOAD_LIBRARY(libktracker)
 R__LOAD_LIBRARY(libSQPrimaryGen)
 R__LOAD_LIBRARY(libcalibrator)
 
-int Fun4Sim(const int n_evt = 1000) {
+int Fun4Sim(const int n_evt = 1000,
+            const std::string& input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root",
+            const std::string& output_file = "vMC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_Cleaned.root") {
   const double FMAGSTR = -1.044;
   const double KMAGSTR = -1.025;
 
@@ -21,6 +23,11 @@ int Fun4Sim(const int n_evt = 1000) {
   rc->set_DoubleFlag("SIGX_BEAM", 0.3);
   rc->set_DoubleFlag("SIGY_BEAM", 0.3);
   rc->set_DoubleFlag("Z_UPSTREAM", -700.);
+
+  rc->set_CharFlag("AlignmentMille", "");
+  rc->set_CharFlag("AlignmentHodo", "");
+  rc->set_CharFlag("AlignmentProp", "");
+  rc->set_CharFlag("Calibration", "");
 
   Fun4AllServer *se = Fun4AllServer::instance();
   se->Verbosity(1);
@@ -49,12 +56,12 @@ int Fun4Sim(const int n_evt = 1000) {
   Fun4AllVectEventInputManager *in = new Fun4AllVectEventInputManager("VectIn");
   in->Verbosity(1);
   in->set_tree_name("tree");
-  in->fileopen("/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root");  // <-- Replace with your actual file
+  in->fileopen(input_file);
   se->registerInputManager(in);
 
   // OUTPUT
   Fun4AllVectEventOutputManager *out = new Fun4AllVectEventOutputManager("VectOut");
-  out->SetFileName("vMC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_Cleaned.root");
+  out->SetFileName(output_file);
   out->SetTreeName("tree"); 
   se->registerOutputManager(out);
 

@@ -75,6 +75,7 @@ def run_reduction(input_file, output_file, **kwargs):
         tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv"
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
+        geom.dump_geometry_summary()
         HODO_IDS = {31, 32, 37, 38, 39, 40}
 
     read_filter_start = time.perf_counter()
@@ -110,12 +111,11 @@ def run_reduction(input_file, output_file, **kwargs):
     print(f"Total runtime:  {total_end - total_start:.2f} s")
 
 if __name__ == "__main__":
-    input_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_negMuon_Dump_Feb21_10000.root"
     # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root" 
-    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned_sagitta.root" 
+    # output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned.root" 
 
-    # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
-    # output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
+    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
 
     run_reduction(
         input_file=input_file,
