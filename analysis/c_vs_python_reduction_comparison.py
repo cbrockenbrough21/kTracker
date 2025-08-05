@@ -181,6 +181,76 @@ def print_comparison(reduced, filtered, fileout):
         nr_f = 100*rem_f/n_f if n_f else 0
 
         fileout.write(f"{det:9} | {pres_r:10.2f} | {pres_f:10.2f} | {nr_r:13.2f} | {nr_f:13.2f}\n")
+        
+def dump_mismatches(events, reduced_events, filtered_events, orig_file, noisy_file, 
+                    max_events=100, outfile="mismatched_hits.txt"):
+    """
+    Compare Python vs C++ reduced hits at event level.
+    Document mismatches for up to `max_events` events.
+    """
+
+    tree_orig = uproot.open(orig_file)["tree"]
+    tree_noisy = uproot.open(noisy_file)["tree"]
+
+    with open(outfile, "w") as fout:
+        count = 0
+        for event_id in events.keys():
+            if count >= max_events:
+                break
+
+            # locate entry in original tree
+            found_entry = None
+            for chunk_idx, data in enumerate(tree_orig.iterate(["eventID"], step_size=1000, library="np")):
+                idx = np.where(data["eventID"] == event_id)[0]
+                if len(idx) > 0:
+                    found_entry = chunk_idx * 1000 + idx[0]
+                    break
+            if found_entry is None:
+                fout.write(f"Event {event_id}: not found in raw!\n")
+                continue
+
+            # load original & noisy hits
+            orig_det = tree_orig["detectorID"].array(entry_start=found_entry, entry_stop=found_entry+1)[0]
+            orig_elem = tree_orig["elementID"].array(entry_start=found_entry, entry_stop=found_entry+1)[0]
+            noisy_det = tree_noisy["detectorID"].array(entry_start=found_entry, entry_stop=found_entry+1)[0]
+            noisy_elem = tree_noisy["elementID"].array(entry_start=found_entry, entry_stop=found_entry+1)[0]
+
+            real = {(d, e) for d, e in zip(orig_det, orig_elem)}
+            noisy = {(d, e) for d, e in zip(noisy_det, noisy_elem)}
+            noise = noisy - real
+
+            py_final = reduced_events.get(event_id, set())
+            cpp_final = filtered_events.get(event_id, set())
+
+            fout.write(f"\n=== Event {event_id} Mismatches (det 1–30 only) ===\n")
+            fout.write(f"{'Detector':>8} | {'Element':>8} | {'Truth':>6} | {'Python':>20} | {'C++':>20}\n")
+            fout.write("-"*75 + "\n")
+
+            all_hits = (real | noise)
+            for (d, e) in sorted(all_hits):
+                if d > 30:
+                    continue
+
+                truth = "REAL" if (d, e) in real else "NOISE"
+
+                py_kept = (d, e) in py_final
+                cpp_kept = (d, e) in cpp_final
+
+                # decide correctness
+                def status(kept, truth):
+                    if truth == "REAL":
+                        return "kept(correct)" if kept else "removed(incorrect)"
+                    else:  # noise
+                        return "removed(correct)" if not kept else "kept(incorrect)"
+
+                py_status = status(py_kept, truth)
+                cpp_status = status(cpp_kept, truth)
+
+                # only write mismatches
+                if py_status != cpp_status:
+                    fout.write(f"{d:8} | {e:8} | {truth:6} | {py_status:20} | {cpp_status:20}\n")
+
+            count += 1
 
 if __name__ == "__main__":
     filtered_file = "/project/ptgroup/Catherine/kTracker/run_C_module/filtered_hit_output.txt"
@@ -201,6 +271,9 @@ if __name__ == "__main__":
     # accumulate stats
     reduced_stats = accumulate_stats(reduced_events, orig_file, noisy_file)
     filtered_stats = accumulate_stats(filtered_events, orig_file, noisy_file)
+    
+    dump_mismatches(filtered_events, reduced_events, filtered_events, orig_file, noisy_file, 
+                max_events=100, outfile="mismatched_hits.txt")
 
     with open("comparison_results.txt","w") as f:
         # print each separately
