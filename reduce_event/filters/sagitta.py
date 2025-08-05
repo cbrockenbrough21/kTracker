@@ -7,6 +7,9 @@ from reco_constants import (
 
 def sagitta_reducer(hitlist, geom, keep_idx):
     """
+    Python translation of EventReducer::sagittaReducer (C++).
+    Only applies sagitta to chamber detectors (ID 1–30).
+
     Args:
         hitlist: list of (detectorID, elementID) pairs from raw input
         geom: GeometryService instance (provides plane and wire info)
@@ -15,13 +18,16 @@ def sagitta_reducer(hitlist, geom, keep_idx):
     Returns:
         list of indices (subset of keep_idx) that passed sagitta filtering
     """
+    # Split chambers vs non-chambers explicitly
+    chambers = [i for i in keep_idx if hitlist[i][0] <= 30]
+    nonchambers = [i for i in keep_idx if hitlist[i][0] > 30]
 
-    # Build working hit list with position
+    # Build working hit list with position - only add chamber hits
     working_hits = []
-    for idx, i in enumerate(keep_idx):
+    for idx, i in enumerate(chambers):
         detID, elemID = hitlist[i]
         if detID not in geom.detectors:
-            print(f"WARNING: detID {detID} missing from geometry, skipping")
+            #print(f"WARNING: detID {detID} missing from geometry, skipping")
             continue
         pos = geom.detectors[detID].get_wire_position(elemID)
         working_hits.append((len(working_hits), detID, pos))
@@ -42,6 +48,7 @@ def sagitta_reducer(hitlist, geom, keep_idx):
     # Init keep flags
     flag = [-1] * len(working_hits)
 
+    # Sagitta triplet logic
     for i_d3, detID3, pos3 in d3_hits:
         z3 = geom.get_plane_position(detID3)
         slope_target = pos3 / (z3 - Z_TARGET)
@@ -52,8 +59,7 @@ def sagitta_reducer(hitlist, geom, keep_idx):
                 continue
 
             z2 = geom.get_plane_position(detID2)
-            slope_ij = abs((pos3 - pos2) / (z2 - z3))
-            if slope_ij > TX_MAX:
+            if abs((pos3 - pos2) / (z2 - z3)) > TX_MAX:
                 continue
 
             s2_target = pos2 - slope_target * (z2 - Z_TARGET)
@@ -79,6 +85,9 @@ def sagitta_reducer(hitlist, geom, keep_idx):
                 if p_min < pos1 < p_max:
                     flag[i_d3] = flag[i_d2] = flag[i_d1] = 1
 
-    # Return original indices from keep_idx that passed
-    return [keep_idx[i] for i, f in enumerate(flag) if f >= 0]
-    # return keep_idx
+    # flagged chambers
+    idx_D3 = len(d1_hits) + len(d2_hits) + len(d3_hits)
+    kept_chambers = [chambers[i] for i, f in enumerate(flag) if f >= 0 and i < idx_D3]
+
+    # untouched non-chambers
+    return kept_chambers + nonchambers
