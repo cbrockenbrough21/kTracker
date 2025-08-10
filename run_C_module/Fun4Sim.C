@@ -45,7 +45,7 @@ int Fun4Sim(const int n_evt = 1000,
   reco->set_enable_KF(true); // Optional Kalman Filter
   reco->setInputTy(SQReco::E1039);
   reco->setFitterTy(SQReco::KFREF);
-  reco->set_evt_reducer_opt("h");  // Enable reducer here - h for hodomask
+  reco->set_evt_reducer_opt("s");  // Enable reducer here - h for hodomask
   reco->set_enable_eval(false);
   reco->set_eval_file_name("eval.root");
   reco->set_enable_eval_dst(false);
