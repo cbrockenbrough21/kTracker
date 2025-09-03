@@ -26,30 +26,11 @@ The event reducer options can be set in the line:
 
 You can change the string passed to set_evt_reducer_opt to enable different combinations of reduction options. The following flags are supported:
 
-a → afterhit
-
-h → hodomask
-
-o → outoftime
-
-c → decluster
-
-m → mergehodo
-
-t → triggermask
-
-s → sagitta
-
-g → hough
-
-r → realization
-
-n → difnim
+a (afterhit), h (hodomask), o (outoftime), c (decluster), m (mergehodo), t (triggermask), s (sagitta), g (hough), r (realization), n (difnim).
 
 For example, to enable both the hodomask and decluster reducers, you would set:
 
 `reco->set_evt_reducer_opt("hc");`
-
 
 ## How to use the Python filter script
 
@@ -79,3 +60,4 @@ Then run:
 ```bash
 python3 ../analysis/analyze_c_vs_python_reduction.py
 ```
+

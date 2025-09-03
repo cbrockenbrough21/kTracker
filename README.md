@@ -29,7 +29,6 @@ pip install numpy uproot pytest
 ```
 
 
-
 ## 🔊 Adding Noise for Testing
 
 To inject noise into a ROOT file:
@@ -66,13 +65,6 @@ You can modify parameters inside the script to control:
 
 Set the branches that are HIT vectors to be filtered when rewriting the file so all HIT vectors remain the same size
 
-### 🧪 Running Tests
-
-To run unit tests for the declustering logic:
-
-```bash
-pytest tests/
-```
 
 
 ### 🔬 Analyzing Reduction Effectiveness
@@ -80,7 +72,7 @@ pytest tests/
 To compare original, noisy, and reduced files (if currently in reduce_event folder):
 
 ```bash
-python3 ../scripts/analyze_reduction.py
+python3 ../analysis/analyze_python_reduction.py
 ```
 
 
@@ -91,18 +83,64 @@ This will report:
 - Real hit preservation and noise removal rates
 
 
-## 📊 Plotting TDC Distributions
-
-Plot per-detector TDC time histograms:
+## Running `Fun4Sim.C` Module
 
 ```bash
-python3 scripts/tdctime_histogram/tdctime_histogram.py tdctime_histogram/yourfile.root
+cd fun4sim
 ```
 
+This directory contains:
 
-Fit a Gaussian to the TDC distribution:
+- `Fun4Sim.C`  → the main C macro (ROOT)
+- `filter_hit_info.py`  → the Python filter script to post-process the output
+
+### How to run the C macro with ROOT
+
+You can run the macro:
 
 ```bash
-python3 scripts/tdctime_histogram/gaussian_fit.py
+root -b -q 'Fun4Sim.C(1000, "input.root", "output.root")'
+```
+
+Reducer Options
+The event reducer options can be set in the line:
+
+`reco->set_evt_reducer_opt("h"); `
+
+You can change the string passed to set_evt_reducer_opt to enable different combinations of reduction options. The following flags are supported:
+
+a (afterhit), h (hodomask), o (outoftime), c (decluster), m (mergehodo), t (triggermask), s (sagitta), g (hough), r (realization), n (difnim).
+
+For example, to enable both the hodomask and decluster reducers, you would set:
+
+`reco->set_evt_reducer_opt("hc");`
+
+### How to use the Python filter script
+
+The Python filter script processes the ROOT output, extracting only the hits preserved after running the reducer, and writes them to `filtered_hit_output.txt`.
+You can run it with:
+
+```bash
+python3 filter_hit_info.py --n_events 5000 --input_file newinput.root --output_file newout.root --filtered_file filtered_hit_output.txt
+
+```
+
+### Analyze the Results
+
+The script uses the `filtered_hit_output.txt` from `filter_root_output.py` from above.
+Before running the analysis, make sure to update the input file paths in the main block of the script as needed.
+Then run:
+
+```bash
+python3 ../analysis/analyze_c_reduction.py
+```
+
+### Compare the C++ Code Reduction and this Repo's Python Code Reduction
+
+Again, be sure to adjust any file paths in the main block of the script to point to your data.
+Then run:
+
+```bash
+python3 ../analysis/analyze_c_vs_python_reduction.py
 ```
 

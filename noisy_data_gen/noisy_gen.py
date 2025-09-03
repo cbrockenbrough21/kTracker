@@ -20,8 +20,8 @@ def inject_noise_into_event(detectorID, elementID, driftDistance, tdcTime):
     """
     used = set((int(detectorID[i]), int(elementID[i])) for i in range(len(detectorID)))
 
-    for det in range(NUM_DETECTORS):
-        for elem in range(NUM_ELEMENT_IDS):
+    for det in range(1, NUM_DETECTORS + 1):
+        for elem in range(1, NUM_ELEMENT_IDS + 1):
             if (det, elem) not in used and random.random() < P_ELECTRONIC_NOISE:
                 detectorID.push_back(det)
                 elementID.push_back(elem)
