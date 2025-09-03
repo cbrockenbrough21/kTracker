@@ -18,19 +18,20 @@ def sagitta_reducer(hitlist, geom, keep_idx):
     Returns:
         list of indices (subset of keep_idx) that passed sagitta filtering
     """
-    # Split chambers vs non-chambers explicitly
-    chambers = [i for i in keep_idx if hitlist[i][0] <= 30]
-    nonchambers = [i for i in keep_idx if hitlist[i][0] > 30]
 
     # Build working hit list with position - only add chamber hits
     working_hits = []
-    for idx, i in enumerate(chambers):
-        detID, elemID = hitlist[i]
-        if detID not in geom.detectors:
-            #print(f"WARNING: detID {detID} missing from geometry, skipping")
-            continue
-        pos = geom.detectors[detID].get_wire_position(elemID)
-        working_hits.append((len(working_hits), detID, pos))
+    new_keep_idx = []
+    for i in keep_idx:
+        if hitlist[i][0] > 30:
+            new_keep_idx.append(i)
+        else:
+            detID, elemID = hitlist[i]
+            if detID not in geom.detectors:
+                #print(f"WARNING: detID {detID} missing from geometry, skipping")
+                continue
+            pos = geom.detectors[detID].get_wire_position(elemID)
+            working_hits.append((i, detID, pos))
 
     # Partition hits by detectorID (D1/D2/D3)
     detectorID_st1_max = 12
@@ -44,9 +45,8 @@ def sagitta_reducer(hitlist, geom, keep_idx):
             d2_hits.append((i, detID, pos))
         else:
             d3_hits.append((i, detID, pos))
-
-    # Init keep flags
-    flag = [-1] * len(working_hits)
+    
+    seen = set()
 
     # Sagitta triplet logic
     for i_d3, detID3, pos3 in d3_hits:
@@ -68,9 +68,8 @@ def sagitta_reducer(hitlist, geom, keep_idx):
             for i_d1, detID1, pos1 in d1_hits:
                 if geom.get_plane_type(detID3) != geom.get_plane_type(detID1):
                     continue
-                if flag[i_d3] > 0 and flag[i_d2] > 0 and flag[i_d1] > 0:
+                if i_d3 in seen and i_d2 in seen and i_d1 in seen:
                     continue
-
                 z1 = geom.get_plane_position(detID1)
 
                 pos_exp_target = SAGITTA_TARGET_CENTER * s2_target + slope_target * (z1 - Z_TARGET)
@@ -83,11 +82,9 @@ def sagitta_reducer(hitlist, geom, keep_idx):
                 p_max = max(pos_exp_target + win_target, pos_exp_dump + win_dump)
 
                 if p_min < pos1 < p_max:
-                    flag[i_d3] = flag[i_d2] = flag[i_d1] = 1
-
-    # flagged chambers
-    idx_D3 = len(d1_hits) + len(d2_hits) + len(d3_hits)
-    kept_chambers = [chambers[i] for i, f in enumerate(flag) if f >= 0 and i < idx_D3]
-
-    # untouched non-chambers
-    return kept_chambers + nonchambers
+                    for idx in (i_d3, i_d2, i_d1):
+                        if idx not in seen:
+                            seen.add(idx)
+                            new_keep_idx.append(idx)
+                          
+    return new_keep_idx
