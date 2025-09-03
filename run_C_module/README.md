@@ -3,7 +3,7 @@
 This directory contains:
 
 - `Fun4Sim.C`  → the main C macro (ROOT)
-- `filter_script.py`  → the Python filter script to post-process the output
+- `filter_hit_info.py`  → the Python filter script to post-process the output
 
 ## How to run the C macro with ROOT
 
@@ -53,17 +53,17 @@ For example, to enable both the hodomask and decluster reducers, you would set:
 
 ## How to use the Python filter script
 
-The Python filter script processes the ROOT output, extracting only the hits preserved after running the reducer, and writes them to `filtered_output.txt`.
+The Python filter script processes the ROOT output, extracting only the hits preserved after running the reducer, and writes them to `filtered_hit_output.txt`.
 You can run it with:
 
 ```bash
-python3 filter_root_output.py --n_events 5000 --input_file newinput.root --output_file newout.root --filtered_file filtered_output.txt
+python3 filter_hit_info.py --n_events 5000 --input_file newinput.root --output_file newout.root --filtered_file filtered_hit_output.txt
 
 ```
 
 ## Analyze the Results
 
-The script uses the `filtered_output` from `filter_root_output.py` from above.
+The script uses the `filtered_hit_output.txt` from `filter_root_output.py` from above.
 Before running the analysis, make sure to update the input file paths in the main block of the script as needed.
 Then run:
 
@@ -77,5 +77,5 @@ Again, be sure to adjust any file paths in the main block of the script to point
 Then run:
 
 ```bash
-python3 ../analysis/c_vs_python_reduction_comparison.py
+python3 ../analysis/analyze_c_vs_python_reduction.py
 ```

@@ -183,7 +183,7 @@ def print_comparison(reduced, filtered, fileout):
         fileout.write(f"{det:9} | {pres_r:10.2f} | {pres_f:10.2f} | {nr_r:13.2f} | {nr_f:13.2f}\n")
 
 if __name__ == "__main__":
-    filtered_file = "/project/ptgroup/Catherine/kTracker/run_C_module/filtered_output.txt"
+    filtered_file = "/project/ptgroup/Catherine/kTracker/run_C_module/filtered_hit_output.txt"
     filtered_events = parse_filtered_output(filtered_file)
 
     reduced_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 

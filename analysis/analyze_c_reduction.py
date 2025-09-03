@@ -118,7 +118,7 @@ def analyze_aggregated(filtered_events, original_file, noisy_file):
     print(f"Noise removal: {nonch_removed / nonch_noise:.2%}" if nonch_noise else "N/A")
 
 if __name__ == "__main__":
-    filtered_file = "/project/ptgroup/Catherine/kTracker/run_C_module/filtered_output.txt"
+    filtered_file = "/project/ptgroup/Catherine/kTracker/run_C_module/filtered_hit_output.txt"
     reduced_events = parse_filtered_output(filtered_file)
 
     original_file = "/project/ptgroup/Catherine/kTracker/data/small_raw/MC_JPsi_Pythia8_Target_April17_10000.root"
