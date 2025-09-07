@@ -19,7 +19,6 @@ def apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, c2h, keep_idx):
     for i in keep_idx:
         
         if detectorIDs[i] > 30:
-            #print(f"[KEEP NON-CHAMBER] detID={detectorIDs[i]}, elemID={elementIDs[i]}")
             new_keep_idx.append(i)  # Always keep non-chamber hits
             continue
     
@@ -30,7 +29,6 @@ def apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, c2h, keep_idx):
 
         overlap = set(c2h[uid]) & hodo_uids
         if overlap:
-            #print(f"[MATCH] Chamber UID {uid} matches hodoscope UIDs {overlap} — keeping")
             new_keep_idx.append(i)
     return new_keep_idx
 
@@ -51,5 +49,3 @@ def hodo_mask(detectorIDs, elementIDs, geom, hodo_ids, keep_idx):
     """
     hodo_uids = extract_hodo_hits(detectorIDs, elementIDs, hodo_ids, keep_idx)
     return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2h, keep_idx)
-
-    #return apply_hodo_mask(detectorIDs, elementIDs, hodo_uids, geom.c2helementIDs, keep_idx)
