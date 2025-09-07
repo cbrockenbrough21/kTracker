@@ -176,13 +176,6 @@ class Plane:
         x_min = x_center - dx
         x_max = x_center + dx
 
-        # # Debug output
-        # print(f"[DEBUG] chamID: {self.detector_id}, elementID: {elementID}")
-        # print(f"  x0: {self.x0}, deltaX: {self.deltaX}, spacing: {self.spacing}, xoffset: {self.xoffset}, n_elements: {self.n_elements}, theta_z: {self.theta_z}, tantheta: {self.tantheta}, rZ: {self.rZ}")
-        # print(f"  mid_index: {mid_index}")
-        # print(f"  dw: {dw}, x_center: {x_center}, dx: {dx}")
-        # print(f"  → x_min: {x_min}, x_max: {x_max}, y_min: {y_min}, y_max: {y_max}")
-
         return x_min, x_max, y_min, y_max
 
     def get_wire_position(self, elementID):
@@ -296,7 +289,6 @@ class GeometryService:
             self.detectors[det_id] = plane
 
         self.init_hodo_mask_lut()
-        #self.init_hodo_mask_lut_new()
     
     def dump_geometry_summary(self, output_path="geometry_dump.tsv"):
         rows = []
@@ -387,11 +379,6 @@ class GeometryService:
                             cross_left = line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2)
                             cross_right = line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2)
 
-                            # print(f"[HODO LUT DEBUG] chamID: {cham_id}, paddle: {paddle_id}, wire: {eid}")
-                            # print(f"    Wire line: ({x1:.3f}, {y1:.3f}) → ({x2:.3f}, {y2:.3f})")
-                            # print(f"    Box projection X bounds: [{x_min:.3f}, {x_max:.3f}], Y bounds: [{y_min:.3f}, {y_max:.3f}]")
-                            # print(f"    Crosses left? {int(cross_left)}, Crosses right? {int(cross_right)}")
-
                             if not cross_left and not cross_right:
                                 continue
                             if eid < elementID_lo:
@@ -424,8 +411,6 @@ class GeometryService:
             if hodo_id not in self.detectors:
                 print(f"[SKIP] Hodo {hodo_id} not in geometry.")
                 continue
-
-            #print(f"[INFO] Processing hodo {hodo_id} with {len(cham_ids)} chambers.")
             
             n_paddles = self.get_plane_n_elements(hodo_id)
             for paddle_id in range(1, n_paddles + 1):
@@ -455,7 +440,6 @@ class GeometryService:
                     if self.get_plane_type(cham_id) == 1:
                         elementID_lo = self.get_exp_element_id(cham_id, x_min)
                         elementID_hi = self.get_exp_element_id(cham_id, x_max)
-                        #print(f"[INFO] Straight chamber {cham_id}: x_min={x_min:.2f}, x_max={x_max:.2f} → el_lo={elementID_lo}, el_hi={elementID_hi}")
 
                     else:
                         for eid in range(1, n_elements + 1):
@@ -463,11 +447,6 @@ class GeometryService:
 
                             cross_left = line_crossing(x_min, y_min, x_min, y_max, x1, y1, x2, y2)
                             cross_right = line_crossing(x_max, y_min, x_max, y_max, x1, y1, x2, y2)
-
-                            # print(f"[HODO LUT DEBUG] chamID: {cham_id}, paddle: {paddle_id}, wire: {eid}")
-                            # print(f"    Wire line: ({x1:.3f}, {y1:.3f}) → ({x2:.3f}, {y2:.3f})")
-                            # print(f"    Box projection X bounds: [{x_min:.3f}, {x_max:.3f}], Y bounds: [{y_min:.3f}, {y_max:.3f}]")
-                            # print(f"    Crosses left? {int(cross_left)}, Crosses right? {int(cross_right)}")
 
                             if not cross_left and not cross_right:
                                 continue
