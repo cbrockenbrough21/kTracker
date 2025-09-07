@@ -5,7 +5,7 @@ This directory contains:
 - `Fun4Sim.C`  → the main C macro (ROOT)
 - `filter_hit_info.py`  → the Python filter script to post-process the output
 
-## How to run the C macro with ROOT
+## How to Run the C Macro with ROOT
 
 You can run the macro using ROOT and save the output to a text file:
 
@@ -32,7 +32,7 @@ For example, to enable both the hodomask and decluster reducers, you would set:
 
 `reco->set_evt_reducer_opt("hc");`
 
-## How to use the Python filter script
+## How to Use the Python Filter Script
 
 The Python filter script processes the ROOT output, extracting only the hits preserved after running the reducer, and writes them to `filtered_hit_output.txt`.
 You can run it with:
