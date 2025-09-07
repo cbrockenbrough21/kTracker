@@ -5,28 +5,22 @@ from reco_constants import (
     TX_MAX
 )
 
-def sagitta_reducer(hitlist, geom, keep_idx):
+def sagitta_reducer(detectorIDs, elementIDs, geom, keep_idx):
     """
     Python translation of EventReducer::sagittaReducer (C++).
-    Only applies sagitta to chamber detectors (ID 1–30).
-
-    Args:
-        hitlist: list of (detectorID, elementID) pairs from raw input
-        geom: GeometryService instance (provides plane and wire info)
-        keep_idx: list of indices into hitlist to consider
-    
-    Returns:
-        list of indices (subset of keep_idx) that passed sagitta filtering
+    Applies only to chamber detectors (ID 1–30). Non-chamber indices in keep_idx pass through.
+    Returns a filtered list of indices.
     """
 
     # Build working hit list with position - only add chamber hits
     working_hits = []
     new_keep_idx = []
     for i in keep_idx:
-        if hitlist[i][0] > 30:
+        if detectorIDs[i] > 30:
             new_keep_idx.append(i)
         else:
-            detID, elemID = hitlist[i]
+            detID = detectorIDs[i]
+            elemID = elementIDs[i]
             if detID not in geom.detectors:
                 #print(f"WARNING: detID {detID} missing from geometry, skipping")
                 continue

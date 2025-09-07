@@ -49,10 +49,7 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
         keep_idx = hodo_mask(detectorIDs, elementIDs, geom, hodo_ids, keep_idx)
         
     if kwargs.get('sagitta', False):
-        # Build hitlist of (detectorID, elementID) pairs
-        hitlist = [(detectorIDs[i], elementIDs[i]) for i in keep_idx]
-        keep_idx_local = sagitta_reducer(hitlist, geom, list(range(len(hitlist))))
-        keep_idx = [keep_idx[i] for i in keep_idx_local]
+        keep_idx = sagitta_reducer(detectorIDs, elementIDs, geom, keep_idx)
 
         
     return keep_idx
