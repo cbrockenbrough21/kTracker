@@ -57,7 +57,7 @@ def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
         
     return keep_idx
 
-def run_reduction(input_file, output_file, **kwargs):
+def run_reduction(input_file, output_file, tsv_path, **kwargs):
     """
     Read ROOT file, apply reduce_event, and write new ROOT file.
     """
@@ -72,7 +72,6 @@ def run_reduction(input_file, output_file, **kwargs):
     geom = None
     HODO_IDS = set()
     if kwargs.get('hodomask', False) or kwargs.get('sagitta', False):
-        tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv"
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
         geom.dump_geometry_summary()
@@ -120,6 +119,7 @@ if __name__ == "__main__":
     run_reduction(
         input_file=input_file,
         output_file=output_file,
+        tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv",
         outoftime=False,
         dedup=False,
         decluster=False,
