@@ -17,42 +17,39 @@ from geom.geom_service import GeometryService
 BRANCHES_TO_FILTER = ["detectorID", "elementID", "driftDistance", "tdcTime"] #"hitID", "hit_trackID", "processID"
 
 def reduce_event(detectorIDs, driftDistances, tdcTimes, elementIDs, **kwargs):
-    """
-    Apply filters to reduce events.
+    geom = kwargs.get("geom", None)
 
-    Args:
-        detectorIDs (list[int])
-        driftDistances (list[float])
-        tdcTimes (list[float])
-        elementIDs (list[int])
+    det   = np.asarray(detectorIDs)
+    elem  = np.asarray(elementIDs)
+    drift = np.asarray(driftDistances, dtype=float)
+    tdc   = np.asarray(tdcTimes, dtype=float)
 
-    Returns:
-        list[int]: Indices to keep
-    """
-    
-    geom = kwargs.get("geom", None) 
-    
-    keep_idx = list(range(len(detectorIDs)))
-            
+    # Sort by detectorID (primary) then elementID (secondary)
+    perm = np.lexsort((elem, det))          # sorted_index -> original_index
+
+    det_s, elem_s = det[perm], elem[perm]
+    drift_s, tdc_s = drift[perm], tdc[perm]
+
+    keep_idx = list(range(perm.size))  # indices in SORTED space [0..N)
+
     if kwargs.get('dedup', False):
-        keep_idx = deduplicate_hits(detectorIDs, elementIDs, keep_idx)
-
+        keep_idx = deduplicate_hits(det_s.tolist(), elem_s.tolist(), keep_idx)
     if kwargs.get('outoftime', False):
-        keep_idx = remove_out_of_time_hits(tdcTimes, keep_idx)
-
+        keep_idx = remove_out_of_time_hits(tdc_s.tolist(), keep_idx)
     if kwargs.get('decluster', False):
-        keep_idx = decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx)
-        
+        keep_idx = decluster_hits(det_s.tolist(), elem_s.tolist(),
+                                  drift_s.tolist(), tdc_s.tolist(),
+                                  geom, keep_idx)
     if kwargs.get('hodomask', False):
-        geom = kwargs['geom']
         hodo_ids = kwargs.get('hodo_ids', set())
-        keep_idx = hodo_mask(detectorIDs, elementIDs, geom, hodo_ids, keep_idx)
-        
+        keep_idx = hodo_mask(det_s.tolist(), elem_s.tolist(), geom, hodo_ids, keep_idx)
     if kwargs.get('sagitta', False):
-        keep_idx = sagitta_reducer(detectorIDs, elementIDs, geom, keep_idx)
+        keep_idx = sagitta_reducer(det_s.tolist(), elem_s.tolist(), geom, keep_idx)
 
-        
-    return keep_idx
+    # Map from sorted indices -> original indices
+    keep_idx_orig = perm[np.asarray(keep_idx, dtype=int)].tolist()
+    return keep_idx_orig
+
 
 def run_reduction(input_file, output_file, tsv_path, **kwargs):
     """
@@ -68,7 +65,7 @@ def run_reduction(input_file, output_file, tsv_path, **kwargs):
     
     geom = None
     HODO_IDS = set()
-    if kwargs.get('hodomask', False) or kwargs.get('sagitta', False):
+    if kwargs.get('hodomask', False) or kwargs.get('sagitta', False) or kwargs.get('decluster', False):
         geom = GeometryService(tsv_path=tsv_path)
         geom.load_geometry_from_tsv()
         geom.dump_geometry_summary()
@@ -110,8 +107,8 @@ if __name__ == "__main__":
     # input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_negMuon_Dump_Feb21_10000_noisy.root" 
     # output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_negMuon_Dump_Feb21_10000_cleaned.root" 
 
-    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_onlyElectronic.root"
-    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_onlyElectronic_cleaned.root" 
+    input_file = "/project/ptgroup/Catherine/kTracker/data/noisy/MC_JPsi_Pythia8_Target_April17_10000_noisy_clusters.root"
+    output_file = "/project/ptgroup/Catherine/kTracker/data/cleaned/MC_JPsi_Pythia8_Target_April17_10000_noisy_clusters_cleaned.root" 
 
     run_reduction(
         input_file=input_file,
@@ -119,7 +116,7 @@ if __name__ == "__main__":
         tsv_path = "/project/ptgroup/Catherine/kTracker/reduce_event/geom/data/param.tsv",
         outoftime=False,
         dedup=False,
-        decluster=False,
+        decluster=True,
         hodomask=False,
-        sagitta=True
+        sagitta=False
     )

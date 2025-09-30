@@ -1,108 +1,108 @@
 import numpy as np
+from reco_constants import N_CHAMBER_PLANES
 
-def decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, keep_idx):
+# Set this to True only if you want to "fix" the C++ quirk.
+_FLUSH_FINAL_CLUSTER = False
+
+def decluster_hits(detectorIDs, elementIDs, driftDistances, tdcTimes, geom, keep_idx):
     """
-    Group adjacent hits and apply declustering logic to remove noise-like clusters.
-    
-    Args:
-        detectorIDs, elementIDs, driftDistances, tdcTimes: Full hit info arrays
-        keep_idx (list[int]): Indices of hits that passed previous filters (e.g. out-of-time)
-
-    Returns:
-        list[int]: Indices of hits to keep after declustering
+    Python port closely following the provided C++:
+      - Assumes hits are already sorted by (detectorID, elementID) in keep_idx order.
+      - Builds clusters in that order.
+      - Breaks when detectorID > nChamberPlanes (no flush of pending cluster).
+      - 2-hit rule: DRIFT rule first, then D3p timing rule.
+      - >=3-hit rule: mean adjacent ΔTDC; drop all if <10, else keep ends.
+    Returns original indices (relative to the passed arrays).
     """
+    n_chamber_planes = N_CHAMBER_PLANES
 
-    # Step 1: Sort the hits (so clusters of adjacent elements in the same detector are grouped)
-    sorted_hits = sorted(keep_idx, key=lambda i: (detectorIDs[i], elementIDs[i]))
+    result = []
+    cluster = []
 
-    result = []    # Final filtered indices
-    cluster = []   # Temporary cluster of adjacent hits
+    def process_cluster(cluster_local):
+        """Return kept indices from this cluster (C++ processCluster)."""
+        m = len(cluster_local)
+        if m == 0:
+            return []
+        if m == 1:
+            return [cluster_local[0]]
 
-    for i in sorted_hits:
+        # All hits in cluster are from the same detector
+        i0 = cluster_local[0]
+        det_id = int(detectorIDs[i0])
+
+        if m == 2:
+            i0, i1 = cluster_local
+            # Pair span (C++: 0.9 * 0.5 * (pos_back - pos_front)), no abs, no swap
+            pos0 = geom.detectors[int(detectorIDs[i0])].get_wire_position(int(elementIDs[i0]))
+            pos1 = geom.detectors[int(detectorIDs[i1])].get_wire_position(int(elementIDs[i1]))
+            w_max = 0.9 * 0.5 * (pos1 - pos0)
+            w_min = (w_max / 9.0) * 4.0
+
+            drift0, drift1 = float(driftDistances[i0]), float(driftDistances[i1])
+            tdc0,   tdc1   = float(tdcTimes[i0]),       float(tdcTimes[i1])
+
+            # 1) DRIFT rule first — keep the smaller drift
+            if (drift0 > w_max and drift1 > w_min) or (drift1 > w_max and drift0 > w_min):
+                # C++ erases the larger; ties keep the first (front)
+                return [i0] if drift0 <= drift1 else [i1]
+
+            # 2) D3p timing rule — det 19..24 and |ΔTDC| < 8 → drop both
+            if 19 <= det_id <= 24 and abs(tdc0 - tdc1) < 8.0:
+                return []
+
+            # Otherwise keep both
+            return [i0, i1]
+
+        # m >= 3: mean of adjacent TDC differences (using incoming order)
+        tdcs = [float(tdcTimes[i]) for i in cluster_local]
+        dt_mean = float(np.mean(np.abs(np.diff(tdcs)))) if m >= 2 else 0.0
+
+        if dt_mean < 10.0:
+            # Electric noise — discard all
+            return []
+        else:
+            # Keep first and last; drop middle
+            return [cluster_local[0], cluster_local[-1]]
+
+    # --- Build clusters in the order provided by keep_idx (already sorted upstream) ---
+    it = iter(keep_idx)
+    for i in it:
+        # HODO BREAK: mirror C++ behavior
+        if int(detectorIDs[i]) > n_chamber_planes:
+            # If we are not flushing, we must KEEP the pending cluster as-is (C++ keeps it)
+            if _FLUSH_FINAL_CLUSTER:
+                result.extend(process_cluster(cluster))
+            else:
+                result.extend(cluster)           # <-- keep pending cluster unchanged
+
+            # And we must KEEP the rest of the hits unchanged (C++ never touched them)
+            result.append(i)                     # include current i
+            result.extend(list(it))              # include all remaining indices
+            cluster = []
+            break
+
         if not cluster:
-            # First hit starts a new cluster
-            cluster.append(i)
+            cluster = [i]
             continue
 
         last = cluster[-1]
-        # Check if current hit is adjacent to last hit in the same detector
-        if detectorIDs[i] == detectorIDs[last] and abs(elementIDs[i] - elementIDs[last]) <= 1:
-            cluster.append(i)
-        else:
-            # Cluster ended — process it and start a new one
-            result.extend(process_cluster(cluster, detectorIDs, driftDistances, tdcTimes))
-            cluster = [i]
+        same_det = int(detectorIDs[i]) == int(detectorIDs[last])
+        adj_elem = (int(elementIDs[i]) - int(elementIDs[last])) <= 1
 
-    # Process the final cluster at end of loop
+        if not same_det or not adj_elem:
+            result.extend(process_cluster(cluster))
+            cluster = [i]
+        else:
+            cluster.append(i)
+
+    # END-OF-LOOP: mirror C++ “no final flush” behavior
     if cluster:
-        result.extend(process_cluster(cluster, detectorIDs, driftDistances, tdcTimes))
+        if _FLUSH_FINAL_CLUSTER:
+            result.extend(process_cluster(cluster))
+        else:
+            result.extend(cluster)               # <-- keep pending final cluster unchanged
 
     return result
 
-
-def process_cluster(cluster, detectorIDs, driftDistances, tdcTimes):
-    """
-    Apply station-specific rules to determine which hits in a cluster to keep.
-
-    Rules:
-    - If 1 hit → keep it.
-    - If 2 hits:
-        - If D3p (detectors 19–24) and |tdc diff| < 8 → remove both (likely noise)
-        - Else, use drift distances to keep one or both.
-    - If >=3 hits:
-        - If avg tdc diff < 10 → remove all (electronic noise)
-        - Else, keep first and last hit only
-    """
-
-    # Half-cell widths by detector group, used for drift-based filtering
-    half_cell_widths = {
-        0: 0.635 / 2,  # D0
-        1: 2.083 / 2,  # D2X
-        2: 2.021 / 2,  # D2U
-        3: 2.021 / 2,  # D2V
-        4: 2.000 / 2,  # D3p
-        5: 2.000 / 2   # D3m
-    }
-
-    n = len(cluster)
-    if n == 1:
-        return [cluster[0]]  # Nothing to decluster
-
-    det_id = detectorIDs[cluster[0]]
-    same_detector = all(detectorIDs[i] == det_id for i in cluster)
-
-    if not same_detector:
-        # Safety check: not a real cluster — return all
-        return cluster
-
-    hw = half_cell_widths.get(det_id // 5, 0.635 / 2)  # Fall back to D0 width
-
-    if n == 2:
-        i0, i1 = cluster
-        drift0, drift1 = driftDistances[i0], driftDistances[i1]
-        tdc0, tdc1 = tdcTimes[i0], tdcTimes[i1]
-
-        # D3p (detectorIDs 19–24): remove both hits if TDCs are too close
-        if 19 <= det_id <= 24 and abs(tdc0 - tdc1) < 8:
-            return []
-
-        # Drift-based logic: one large + one medium drift → remove weaker one
-        w_max = 0.9 * hw
-        w_min = 0.4 * hw
-
-        if drift0 > w_max and drift1 > w_min:
-            return [i1]  # Keep smaller drift
-        elif drift1 > w_max and drift0 > w_min:
-            return [i0]
-        else:
-            return [i0, i1]
-
-    # n ≥ 3: check average TDC time difference
-    elif n >= 3:
-        tdcs = [tdcTimes[i] for i in cluster]
-        dt_mean = np.mean(np.abs(np.diff(tdcs)))
-
-        if dt_mean < 10:
-            return []  # Likely noise — remove all
-        else:
-            return [cluster[0], cluster[-1]]  # Keep edges only
+ 
